@@ -325,10 +325,11 @@ class Amplitude(pBase):
 
             # Evaluate the pre-pulse transients (for finite-duration
             # parameter perturbations
-            x_before = self.comb_interp(self.phis, ts[~after])
-            pdf = pd.phase_offset(self.phis, phi_offset)[:,None]
-            avg_xb = (pdf*x_before).swapaxes(1,0)
-            traj_out[~after] = p_integrate(self.phis, avg_xb).T
+            if not np.all(after): # Only if we need negative times
+                x_before = self.comb_interp(self.phis, ts[~after])
+                pdf = pd.phase_offset(self.phis, phi_offset)[:,None]
+                avg_xb = (pdf*x_before).swapaxes(1,0)
+                traj_out[~after] = p_integrate(self.phis, avg_xb).T
 
         except AttributeError:
             Delta_x = (self.traj_interp(adj_phis, ts) -

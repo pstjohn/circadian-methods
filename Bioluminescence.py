@@ -50,11 +50,11 @@ class Bioluminescence(object):
         self.yvals['mean'] = mean
 
 
-    def filter(self):
+    def filter(self, cutoff_period=15.):
         """ Lowpass filter to remove noise """
         self.x, self.y = lowpass_filter(self.x, self.y,
                                         cutoff_period=(self.period *
-                                                       15./24))
+                                                       cutoff_period/24.))
         self.yvals['filt'] = self.y
 
 
@@ -89,7 +89,7 @@ class Bioluminescence(object):
         self.yvals['exp_amp'] = self.y/exp_traj
 
 
-    def dwt_breakdown(self, wavelet='dmey', mode='sym'):
+    def dwt_breakdown(self, best_res=None, wavelet='dmey', mode='sym'):
         """ Break the signal down into component frequencies using the
         dwt. 
 
@@ -102,9 +102,30 @@ class Bioluminescence(object):
           """
 
         # Sample the interval with a number of samples = 2**n
-        curr_res = len(self.x)
-        curr_pow = int(np.log(curr_res)/np.log(2))
-        self.even_resample(res=2**(curr_pow))
+        
+
+        if best_res is None:
+            curr_res = len(self.x)
+            curr_pow = int(np.log(curr_res)/np.log(2))
+
+            def bins(curr_res):
+                curr_pow = int(np.log(curr_res)/np.log(2))
+                dx = (self.x[-1] - self.x[0])/(curr_res - 1)
+                period_bins = np.array([(2**j*dx, 2**(j+1)*dx) for j in
+                                        xrange(1,curr_pow+1)])
+                l = np.all(np.vstack([period_bins[:,0] <= self.period,
+                                      period_bins[:,1] >= self.period]),
+                           axis=0)
+                circadian_bin = int(np.where(l)[0]) 
+                return np.abs(np.sum((period_bins[circadian_bin] -
+                                      self.period)))
+
+            best_res = optimize.fminbound(bins, 2**(curr_pow-1),
+                                          2**(curr_pow+1))
+
+        self.even_resample(res=int(best_res))
+
+        # self.even_resample(res=2**(curr_pow))
 
         out = dwt_breakdown(self.x, self.y, wavelet=wavelet,
                             nbins=np.inf, mode=mode)
@@ -120,6 +141,86 @@ class Bioluminescence(object):
         self.yvals['dwt_detrend'] = out['components'][circadian_bin]
         self.y = out['components'][circadian_bin]
 
+    def reset(self):
+        """ reset values in x and y to the raw values used when
+        initiating the class """
+        self.x = self.xvals['raw']
+        self.y = self.yvals['raw']
+
+
+    def _cwt_y_process(self, x, y):
+        """ Process the x and y variables to extrapolate y such that it
+        ends at an extrema. Should reduce the boundary effects when
+        using mirror end conditions """
+
+
+
+
+
+    def continuous_wavelet_transform(self, y=None, process_y=True,
+                                     shortestperiod=15,
+                                     longestperiod=40, nvoice=512,
+                                     be=5):
+        """ Function to calculate the continuous wavelet transform of
+        the data, with an attempt to reduce boundary effects through
+        mirroring the data series """
+
+        if y is None:
+            try: y = self.yvals['exp_amp']
+            except KeyError: y = self.y
+
+        x_len = len(self.x)
+        assert len(y) == x_len, "CWT data length mismatch"
+
+        cwt = continuous_wavelet_transform(self.x, y,
+                                           shortestperiod=shortestperiod,
+                                           longestperiod=longestperiod,
+                                           nvoice=nvoice, be=be)
+
+        self.cwt = cwt
+        
+
+
+
+
+
+
+
+
+
+        
+
+
+
+
+        # Get local extrema
+        # max_extrema = np.array(np.diff(np.sign(np.diff(y))), dtype=bool) 
+        # max_extrema = np.where(max_extrema)[0]
+
+        # curr_res = len(self.x)
+        # dist = curr_res - max_extrema[-1]
+        # period = max_extrema[-2] - max_extrema[-1]
+        # assert dist < period, "Peak Finding Issue with BioClass.CWT"
+
+        # x_temp = self.x[:max_extrema[-1]]
+        # y_temp = y[:max_extrema[-1]]
+
+        # rev_y = y_temp[max_extrema[-2]:max_extrema[-1]][::-1]
+        # y_temp = np.hstack([y_temp, rev_y])
+        # ext_x = np.hstack([x_temp, x_temp[:period] +
+        #                    x_temp[max_extrema[-1]]])
+
+
+                             
+
+
+
+
+
+
+
+
+        
 
             
         
@@ -285,7 +386,7 @@ def estimate_sinusoid_pars(x, y):
 
     # Estimate exponential decay
     # Get locations of extrema
-    inds = np.where(np.diff(np.sign(np.diff(y))))[0]
+    inds = np.where(np.diff(np.sign(np.diff(y))))[0] + 1
     y_extreme = np.abs(y[inds])
     x_extreme = x[inds]
 
@@ -326,13 +427,13 @@ def _plist_to_pars(plist):
     for par, label in zip(plist, pars_list): pars[label] = par
     return pars
 
-def fit_decaying_sinusoid(x, y):
+def fit_decaying_sinusoid(x, y, weights=None):
     """ Estimate and fit parameters for a decaying sinusoid to fit y(x)
     """
 
     p0 = _pars_to_plist(estimate_sinusoid_pars(x, y))
+    if weights is None: weights = 1/np.exp(-p0[-1]*x)
 
-    weights = 1/np.exp(-p0[-1]*x)
     popt, pcov = optimize.curve_fit(decaying_sinusoid, x, y, p0=p0,
                                     sigma=weights)
 
@@ -353,7 +454,7 @@ def fit_decaying_sinusoid(x, y):
 
 def continuous_wavelet_transform(x, y, shortestperiod=20,
                                  longestperiod=30, nvoice=512, ga=3,
-                                 be=7, opt_b='mir', opt_m='ban'):
+                                 be=7, opt_b='exp_sin', opt_m='ban'):
     """ Call lower level functions to generate the cwt of the data in x
     and y, according to various parameters. Will resample the data to
     ensure efficient fft's if need be """
@@ -426,7 +527,7 @@ def calculate_widths(x, shortestperiod=20., longestperiod=30.,
     return fs[valid_inds], tau[valid_inds], qscaleArray[valid_inds]
 
 
-def cwt(y, fs, ga=3, be=7, opt_b='mir', opt_m='ban'):
+def cwt(y, fs, ga=3, be=7, opt_b='exp_sin', opt_m='ban'):
     """
     Calculate the continuous wavelet transform using generalized morse
     wavelets. 
@@ -542,11 +643,69 @@ def timeseries_boundary(x, opt_b, bdetrend):
         y = np.hstack([x[::-1][M/2:], x, x[::-1][:M/2]])
     elif opt_b == "per":
         y = x
+    
+    elif opt_b == "exp_sin":
+        # Attempt to fit an exponential periodic function to each end of
+        # the signal, such that the total length is 2*M
+
+        # Declare a temporary variable t, all my functions operate on an
+        # x and y pair rather than dimensionless frequency
+        t = np.linspace(0, 100, len(x))
+        period = estimate_period(t, x)
+        
+        # Get last two periods of x and y
+        ind_end   = np.abs(t - (t[-1] - 2*period)).argmin()
+        ind_start = np.abs(t - (2*period)).argmin()
+        t_end   = t[ind_end:]
+        x_end   = x[ind_end:]
+        t_start = t[:ind_start]
+        x_start = x[:ind_start]
+        x_mid   = x[ind_start:ind_end]
+
+        t_end_ext, x_end_ext     = extend(t_end, x_end, M/2)
+        t_start_ext, x_start_ext = extend(t_start, x_start[::-1], M/2)
+
+        y = np.hstack([x_start_ext[::-1], x_mid, x_end_ext])
+        # tt = np.linspace(t[0] - t.mean(), t[-1] + t.mean(), num=len(yt))
 
     if opt_b is not 'per': index = np.arange(M/2, M + M/2)
     else: index = np.arange(M)
 
     return y, index
+
+def extend(x_end, y_end, length):
+    """ Extends x_end, y_end by length, using a decaying sinusoid. Will
+    only work for detrended data. Tries to respect original data in
+    y_end, but some may be changed to keep the function smooth. Assumes
+    x_end, y_end encompass approximately 2 full periods"""
+
+    end_len = len(x_end)
+    period = (x_end[-1] - x_end[0])/2
+    dx = (x_end[-1] - x_end[0])/(end_len - 1)
+    extnum = length + end_len
+    x_ext = np.linspace(x_end[0], x_end[0] + extnum*dx, num=extnum,
+                        endpoint=False)
+
+    weights = np.exp(-3*(x_end-x_end[0])/period)
+
+    end_pars, end_pcov = fit_decaying_sinusoid(x_end, y_end,
+                                               weights=weights)
+
+    y_fit = decaying_sinusoid(x_ext, *_pars_to_plist(end_pars))
+
+    def hill(t, K, start=0, finish=1, n=3):
+        return start + (finish-start)*(t**n/(K**n + t**n))
+
+    # Smooth transition from y_end to y_fit
+    merge = hill(x_end, x_end[-1] - period/2, n=100)
+
+    y_ext = np.zeros(*x_ext.shape)
+    y_ext[:end_len] += y_end * (1 - merge)
+    y_ext[:end_len] += y_fit[:end_len] * (merge)
+    y_ext[end_len:] = y_fit[end_len:]
+
+    return x_ext, y_ext
+
 
 
 def timeseries_boundary_old(x, opt_b, bdetrend):
