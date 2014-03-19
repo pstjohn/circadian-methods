@@ -2,7 +2,7 @@ import math
 import numpy as np
 import matplotlib
 
-from scipy.interpolate import (splrep, splint, fitpack,
+from scipy.interpolate import (splrep, splint, fitpack, splev,
                                UnivariateSpline, dfitpack,
                                InterpolatedUnivariateSpline)
 
