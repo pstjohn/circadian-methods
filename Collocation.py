@@ -946,6 +946,8 @@ class Collocation:
                 tau = (self.tdata[i][j] - taustart)*(self.NK+1)/self.TF
 
                 x_interp = z(tau, XD[feind][0])
+                # Broken in newest numpy version, likely need to redo
+                # this whole file with most recent versions
                 y_model = self.Amatrix[i].dot(x_interp)
 
                 # Add measurement scaling

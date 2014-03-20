@@ -18,7 +18,15 @@ class Amplitude(pBase):
     """ Class to calculate perturbed trajectories and amplitude change
     for a population of oscillators with underlying dynamics described
     by the inhereted pBase class. Intended to replace the older
-    AmplitudeResponse class """
+    AmplitudeResponse class 
+    
+    I really should have made this class work underneath the population
+    distribution classes, where a population of oscillators can have
+    perturbations applied to them at arbitrary times, and this class
+    calculates the relevant phase-dependent changes necessary to change
+    the distribution. Would take a bunch of reformatting, so perhaps I
+    will pick this up at a later time.
+    """
 
     # Shortcut methods
     def _phi_to_t(self, phi): return phi*self.y0[-1]/(2*np.pi)
@@ -401,7 +409,7 @@ class phase_distribution(object):
         ret_phis = np.zeros((len(ts), phi_res))
 
         # For every time point, find distribution
-        for i, t in enumerate(ts):
+        for i, t in enumerate(ts): ##Parallelize?
             sigma = np.sqrt(2*self.phase_diffusivity*t) if t > 0 else 0.
             mean = (t * (2*np.pi)/self.period)%(2*np.pi)
             if sigma > phi_diff: 
@@ -463,7 +471,7 @@ class phase_distribution(object):
 
         # Is the phase transition curve monotonic?
         # if so, use abbreviated formula
-        if np.all(ptc_interp(iphis, 1) > 0):
+        if ptc_interp(phis, 1).min() > 1E-2:
             invertedptc = UnivariateSpline(ptc_interp(x), x, s=0)
             f_perturbed = (invertedptc(iphis, 1) *
                            self.phase_offset(invertedptc(iphis),
@@ -550,7 +558,7 @@ class gaussian_phase_distribution(phase_distribution):
         ret_phis = np.zeros((len(ts), phi_res))
 
         # For every time point, find distribution
-        for i, t in enumerate(ts):
+        for i, t in enumerate(ts): ##Parallelize?
             sigma_d = np.sqrt(2*self.phase_diffusivity*t) if t > 0 else 0.
             mu_d = (t * (2*np.pi)/self.period)%(2*np.pi)
 
@@ -634,6 +642,8 @@ def wrapped_gaussian(phis, mu, sigma, abstol=1E-10):
             if diff.max() < abstol: break
 
         return tsum/phi_diff
+
+    mu = np.asarray(mu)%(2*np.pi)
 
     if sigma > 1.4:
         return wrapped_gaussian_fourier(phis, mu, sigma, abstol)
