@@ -32,15 +32,7 @@ copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
 # Conditional SCOOP import. Use map_ instead of map for serial or
 # parallel evaluation
 try:
-    import scoop
-    if scoop.is_running:
-        from scoop.futures import map as map_temp
-    else:
-        raise ImportError()
+    from scoop.futures import map as map_
 except ImportError:
-    map_temp = map
-
-def map_(*args, **kwargs):
-    return list(map_temp(*args, **kwargs))
-
+    map_ = map
 
