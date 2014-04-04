@@ -9,6 +9,8 @@ from scipy.sparse.linalg import spsolve
 # import matplotlib.pylab as plt
 
 from matplotlib import mlab
+from CommonFiles.Utilities import (color_range, format_number,
+                                   round_sig)
 
 import pywt
 
@@ -39,12 +41,12 @@ class Bioluminescence(object):
         self.yvals['even'] = self.y
 
 
-    def detrend(self):
+    def detrend(self, a=0.05):
         """ Detrend the data """
 
         self.x, self.y, mean = detrend(self.x, self.y,
                                        est_period=self.period,
-                                       ret='both')
+                                       ret='both', a=a)
 
         self.yvals['detrended'] = self.y
         self.yvals['mean'] = mean
@@ -58,14 +60,15 @@ class Bioluminescence(object):
         self.yvals['filt'] = self.y
 
 
-    def fit_sinusoid(self, t_trans=0.):
+    def fit_sinusoid(self, t_trans=0., weights=None):
         """ Fit a decaying sinusoid, ignoring the part of the signal
         with x less than t_trans """
 
         start_ind = ((self.x - t_trans)**2).argmin()
 
         pars, conf = fit_decaying_sinusoid(self.x[start_ind:],
-                                           self.y[start_ind:])
+                                           self.y[start_ind:],
+                                           weights=weights)
         self.sinusoid_pars = pars
         self.sinusoid_confidence = conf
         self.period = pars['period']
@@ -131,6 +134,7 @@ class Bioluminescence(object):
                             nbins=np.inf, mode=mode)
 
         period_bins = np.array(out['period_bins'])
+        self.dwt_bins = len(period_bins)
 
         l = np.all(np.vstack([period_bins[:,0] <= self.period,
                               period_bins[:,1] >= self.period]), axis=0)
@@ -139,28 +143,13 @@ class Bioluminescence(object):
         self.dwt = out
 
         self.yvals['dwt_detrend'] = out['components'][circadian_bin]
+        self.dwt['circadian_bin'] = circadian_bin
         self.y = out['components'][circadian_bin]
 
-    def reset(self):
-        """ reset values in x and y to the raw values used when
-        initiating the class """
-        self.x = self.xvals['raw']
-        self.y = self.yvals['raw']
 
-
-    def _cwt_y_process(self, x, y):
-        """ Process the x and y variables to extrapolate y such that it
-        ends at an extrema. Should reduce the boundary effects when
-        using mirror end conditions """
-
-
-
-
-
-    def continuous_wavelet_transform(self, y=None, process_y=True,
-                                     shortestperiod=15,
+    def continuous_wavelet_transform(self, y=None, shortestperiod=15,
                                      longestperiod=40, nvoice=512,
-                                     be=5):
+                                     be=5, edge_method='exp_sin'):
         """ Function to calculate the continuous wavelet transform of
         the data, with an attempt to reduce boundary effects through
         mirroring the data series """
@@ -175,9 +164,64 @@ class Bioluminescence(object):
         cwt = continuous_wavelet_transform(self.x, y,
                                            shortestperiod=shortestperiod,
                                            longestperiod=longestperiod,
-                                           nvoice=nvoice, be=be)
+                                           nvoice=nvoice, be=be,
+                                           opt_b=edge_method)
 
         self.cwt = cwt
+        
+
+    def reset(self):
+        """ reset values in x and y to the raw values used when
+        initiating the class """
+        self.x = self.xvals['raw']
+        self.y = self.yvals['raw']
+
+
+
+    def plot_dwt_components(self, ax, space=1.0, bins=None, baselines=None):
+        """ Plot the decomposition from the dwt on the same set of axes,
+        similar to figure 4 in DOI:10.1177/0748730411416330. space is
+        relative spacing to leave between each component, bins is a
+        boolean numpy array which specifies which components to plot
+        (default is all bins) """
+
+        if bins is None:
+            bins = np.array([True]*self.dwt_bins)
+        components = np.array(self.dwt['components'])[bins]
+
+        if baselines is None:
+            # Assume that dwt breakdown will be part of a shared x/y
+            # subplot
+
+            baselines = [0,]
+            last_component = np.zeros(components[0].shape)
+
+            spacing = space*(((components.max(1) -
+                             components.min(1)).sum())/self.dwt_bins)
+            
+            for c in components:
+                width = np.abs((c-last_component).min()) + spacing
+                baselines += [width + baselines[-1]]
+                last_component = c
+
+            baselines = np.array(baselines[1:]) 
+            self.dwt['plot_baselines'] = baselines
+
+            periods    = np.array(self.dwt['period_bins'])
+            period_str = format_number(round_sig(periods))
+
+            ax.set_yticks(baselines)
+            ax.set_xlim([self.x.min(), self.x.max()])
+            ax.set_ylim([0, baselines[-1] + components[-1].max() +
+                         spacing])
+            ax.set_yticklabels([pr[0] + 'h - ' + pr[1] +'h' for pr in
+                                period_str])
+
+
+        components = components + np.atleast_2d(baselines).T
+        for comp, color in zip(components, color_range(self.dwt_bins)):
+            ax.plot(self.x, comp, color=color)
+
         
 
 
@@ -300,7 +344,9 @@ def detrend(x, y, est_period=24., ret="detrended", a=0.05):
     x = np.asarray(x)
     y = np.asarray(y)
 
-    # As recommended by Ravn, Uhlig 2004, a calculated empiracally 
+    # yt, index = timeseries_boundary(y, opt_b='mir', bdetrend=False)
+
+    # As recommended by Ravn, Uhlig 2004, a calculated empirically 
     num_periods = (x.max() - x.min())/est_period
     points_per_period = len(x)/num_periods
     w = a*points_per_period**4
@@ -363,20 +409,26 @@ def power_spectrum(x, y):
 
 
 def fit_exponential(x, y):
-    lny = np.log(y)
-    xy = (x * y).sum()
-    xxy = (x**2 * y).sum()
-    ylny = (y * lny).sum()
-    xylny = (x * y * lny).sum()
-    y_ = y.sum()
+    if fit_exponential.weights == 'equal':
+        lny = np.log(y)
+        xy = (x * y).sum()
+        xxy = (x**2 * y).sum()
+        ylny = (y * lny).sum()
+        xylny = (x * y * lny).sum()
+        y_ = y.sum()
 
-    denom = y_ * xxy - xy**2
+        denom = y_ * xxy - xy**2
 
-    a = (xxy * ylny - xy*xylny)/denom
-    b = (y_ * xylny - xy * ylny)/denom
+        a = (xxy * ylny - xy*xylny)/denom
+        b = (y_ * xylny - xy * ylny)/denom
+    
+    else:
+        A = np.vstack([x, np.ones(len(x))]).T
+        b, a = np.linalg.lstsq(A, np.log(y))[0]
 
     return np.exp(a), b
 
+fit_exponential.weights = 'equal'
 
 
 def estimate_sinusoid_pars(x, y):
@@ -435,7 +487,7 @@ def fit_decaying_sinusoid(x, y, weights=None):
     if weights is None: weights = 1/np.exp(-p0[-1]*x)
 
     popt, pcov = optimize.curve_fit(decaying_sinusoid, x, y, p0=p0,
-                                    sigma=weights)
+                                    sigma=weights, maxfev=5000)
 
     # Find appropriate confidence intervals
     relative_confidence = 2*np.sqrt([pcov[i,i] for i in
@@ -639,6 +691,8 @@ def timeseries_boundary(x, opt_b, bdetrend):
     # Allocate space for solution
     if opt_b == "zer":
         y = np.hstack([np.zeros(M/2), x, np.zeros(M/2)])
+    if opt_b == "con":
+        y = np.hstack([x[0]*np.ones(M/2), x, x[-1]*np.ones(M/2)])
     elif opt_b == "mir":
         y = np.hstack([x[::-1][M/2:], x, x[::-1][:M/2]])
     elif opt_b == "per":
@@ -686,18 +740,38 @@ def extend(x_end, y_end, length):
     x_ext = np.linspace(x_end[0], x_end[0] + extnum*dx, num=extnum,
                         endpoint=False)
 
-    weights = np.exp(-3*(x_end-x_end[0])/period)
+    weights = np.exp(-2*(x_end-x_end[0])/period)
 
-    end_pars, end_pcov = fit_decaying_sinusoid(x_end, y_end,
-                                               weights=weights)
+
+    def hill(t, K, start=0, finish=1, n=3):
+        """ Ensure a smooth transition from the original trajectory to
+        the fitted extension. Should be start at t=0, finish at t=t[-1]
+        """
+
+        hill_term = start + (finish-start)*(t**n/(K**n + t**n))
+        offset = (hill_term[-1]/finish)
+        hill_term *= 1/offset
+        return hill_term
+
+    try:
+        end_pars, end_pcov = fit_decaying_sinusoid(x_end, y_end,
+                                                   weights=weights)
+                                                   
+        # Sharper transition from y_end to y_fit
+        merge = hill(x_end, x_end[-1] - period/2, n=100)
+
+    except RuntimeError:
+        # Error with the fitting.
+        weights = np.exp(-1*(x_end-x_end[0])/period)[::-1]
+        end_pars, end_pcov = fit_decaying_sinusoid(x_end, y_end,
+                                                   weights=weights)
+                                                  
+        # Smoother transition from y_end to y_fit
+        merge = hill(x_end, x_end[-1] - period/2, n=20)
+        
 
     y_fit = decaying_sinusoid(x_ext, *_pars_to_plist(end_pars))
 
-    def hill(t, K, start=0, finish=1, n=3):
-        return start + (finish-start)*(t**n/(K**n + t**n))
-
-    # Smooth transition from y_end to y_fit
-    merge = hill(x_end, x_end[-1] - period/2, n=100)
 
     y_ext = np.zeros(*x_ext.shape)
     y_ext[:end_len] += y_end * (1 - merge)
@@ -779,9 +853,12 @@ def dwt_breakdown(x, y, wavelet='dmey', nbins=np.inf, mode='sym'):
         coeff_list = [None, coeff] + [None] * i
         rec_d.append(pywt.waverec(coeff_list, wavelet)[:lenx])
 
+    rec_a = pywt.waverec([cA] + [None]*len(cD), wavelet)[:lenx]
+
     return {
         'period_bins' : period_bins,
         'components' : rec_d,
+        'approximation' : rec_a,
     }
 
 

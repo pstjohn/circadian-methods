@@ -12,7 +12,7 @@ import casadi as cs
 
 # Model Constants
 paramset = [4., 20., 1., 0.005, 0.05, 0.1]
-y0in = [ 0.65609071,  0.85088331,  3.04067965]
+y0in = [ 0.65609071,  0.85088331,  3.04067965] # [X[0], Y[0], Period]
 
 NEQ = 2
 NP = 6
@@ -22,7 +22,7 @@ def model():
     X = cs.ssym("X")
     Y = cs.ssym("Y")
 
-    y = cs.vertcat([X,Y])
+    y = cs.vertcat([X,Y]) # vector version of y
     
     # Parameter Assignments
     P  = cs.ssym("P")
@@ -33,7 +33,8 @@ def model():
     a2 = cs.ssym("a2")
         
     symparamset = cs.vertcat([P, kt, kd, a0, a1, a2])
-    # Time Variable
+    
+    # Time Variable (typically unused for autonomous odes)
     t = cs.ssym("t")
     
     

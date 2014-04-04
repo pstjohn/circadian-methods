@@ -1,3 +1,4 @@
+import decimal
 import math
 import numpy as np
 import matplotlib
@@ -446,3 +447,36 @@ def ptc_from_prc(prc):
 
     return ptc_interp
         
+
+def format_number_single(num):
+    """ Formatting routine to provide a nice representation of a number,
+    removing unnecessary trailing zeros """
+
+    try:
+        dec = decimal.Decimal(num)
+    except:
+        return 'bad'
+    tup = dec.as_tuple()
+    delta = len(tup.digits) + tup.exponent
+    digits = ''.join(str(d) for d in tup.digits)
+    if delta <= 0:
+        zeros = abs(tup.exponent) - len(tup.digits)
+        val = '0.' + ('0'*zeros) + digits
+    else:
+        val = digits[:delta] + ('0'*tup.exponent) + '.' + digits[delta:]
+    val = val.rstrip('0')
+    if val[-1] == '.':
+        val = val[:-1]
+    if tup.sign:
+        return '-' + val
+    return val
+
+
+def round_sig_single(x, sig=2):
+    """ Round a number (matrix) to the specified number of significant
+    digits """
+    return str(round(x, sig-int(math.floor(math.log10(x)))-1))
+
+round_sig = np.vectorize(round_sig_single, otypes=[str,])
+format_number = np.vectorize(format_number_single, otypes=[str,])
+
