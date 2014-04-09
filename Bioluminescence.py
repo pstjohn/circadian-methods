@@ -862,6 +862,27 @@ def dwt_breakdown(x, y, wavelet='dmey', nbins=np.inf, mode='sym'):
     }
 
 
+
+def fit_limitcycle_sinusoid(y):
+    """ Fit a sinusoid to an input periodic limit cycle, returning the
+    amplitude and phase parameters """
+
+    y = np.array(y)
+    y += -y.mean()
+    ts = np.linspace(0, 2*np.pi, len(y))
+    amp_guess = y.std()
+    phase_guess = ts[y.argmax()]
+
+    def sin_model(ts, amp, phase):
+        return amp*np.sin(ts + phase)
+
+    popt, pcov = optimize.curve_fit(sin_model, ts, y,
+                                    p0=[amp_guess, phase_guess])
+
+    return popt
+
+
+
     
 
 

@@ -28,10 +28,6 @@ class Amplitude(pBase):
     will pick this up at a later time.
     """
 
-    # Shortcut methods
-    def _phi_to_t(self, phi): return phi*self.y0[-1]/(2*np.pi)
-    def _t_to_phi(self, t): return (2*np.pi)*t/self.y0[-1]
-
     def lc_phi(self, phi):
         """ interpolate the selc.lc interpolation object using a time on
         (0,2*pi) """
@@ -144,8 +140,8 @@ class Amplitude(pBase):
             # Find parameter set for pulse
             self.pulsesim.setInput(x_start, cs.INTEGRATOR_X0)
             self.pulsesim.setInput(param_init.tolist() +
-                                 [self._phi_to_t(pulse_duration)],
-                                 cs.INTEGRATOR_P)
+                                   [self._phi_to_t(pulse_duration)],
+                                   cs.INTEGRATOR_P)
             self.pulsesim.evaluate()
             pulse_trajectory = np.array(self.pulsesim.output())
             x0 = pulse_trajectory[-1]
@@ -537,7 +533,7 @@ class gaussian_phase_distribution(phase_distribution):
         self.invert_res = invert_res
 
         # Gaussian specific variables
-        self.mu = mu
+        self.mu = mu%(2*np.pi)
         self.sigma = sigma
 
         self.fo_phi = lambda phis: wrapped_gaussian(phis%(2*np.pi), mu,

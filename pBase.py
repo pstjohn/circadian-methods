@@ -62,7 +62,9 @@ class pBase(object):
 
         self.intoptions = {
             'y0tol'            : 1E-3,
-            'bvptol'           : 1E-8,
+            'bvp_ftol'         : 1E-10,
+            'bvp_abstol'       : 1E-12,
+            'bvp_reltol'       : 1E-10,
             'sensabstol'       : 1E-11,
             'sensreltol'       : 1E-9,
             'sensmaxnumsteps'  : 80000,
@@ -84,6 +86,10 @@ class pBase(object):
             self.calcY0(600)
         else: self.y0 = y0
 
+    # Shortcut methods
+    def _phi_to_t(self, phi): return phi*self.y0[-1]/(2*np.pi)
+    def _t_to_phi(self, t): return (2*np.pi)*t/self.y0[-1]
+
     def pClassSetup(self):
         """
         Sets up a new Periodic subclass. This class is a c++ class I
@@ -94,7 +100,7 @@ class pBase(object):
         self.pClass = p.Periodic(self.modlT)
         self.sety0(self.y0)
         self.setparamset(self.paramset)
-        self.pClass.setFTOL(self.intoptions['bvptol'])
+        self.pClass.setFTOL(self.intoptions['bvp_ftol'])
         self.pClass.setFINDY0TOL(self.intoptions['y0tol'])
     
     def sety0(self,y0):
@@ -294,8 +300,8 @@ class pBase(object):
 
         # Here we create and initialize the integrator SXFunction
         self.bvpint = cs.CVodesIntegrator(self.modlT)
-        self.bvpint.setOption('abstol',self.intoptions['bvptol']*1E-1)
-        self.bvpint.setOption('abstol',self.intoptions['bvptol']*1E-1)
+        self.bvpint.setOption('abstol',self.intoptions['bvp_abstol'])
+        self.bvpint.setOption('reltol',self.intoptions['bvp_reltol'])
         self.bvpint.setOption('tf',1)
         self.bvpint.setOption('disable_internal_warnings', True)
         self.bvpint.setOption('fsens_err_con', True)
@@ -318,7 +324,7 @@ class pBase(object):
         F.init()
 
         solver = cs.KinsolSolver(F)
-        solver.setOption('abstol',self.intoptions['bvptol'])
+        solver.setOption('abstol',self.intoptions['bvp_ftol'])
         solver.setOption('ad_mode', "forward")
         solver.setOption('strategy','linesearch')
         solver.setOption('numeric_jacobian', True)
@@ -347,8 +353,8 @@ class pBase(object):
         
         # Here we create and initialize the integrator SXFunction
         self.bvpint = cs.CVodesIntegrator(self.modlT)
-        self.bvpint.setOption('abstol',self.intoptions['bvptol']*1E-2)
-        self.bvpint.setOption('abstol',self.intoptions['bvptol']*1E-2)
+        self.bvpint.setOption('abstol',self.intoptions['bvp_abstol'])
+        self.bvpint.setOption('reltol',self.intoptions['bvp_reltol'])
         self.bvpint.setOption('tf',1)
         self.bvpint.setOption('disable_internal_warnings', True)
         self.bvpint.setOption('fsens_err_con', True)
@@ -373,9 +379,9 @@ class pBase(object):
         from scipy.optimize import root
 
         options = {}
-            # 'epsfcn' : self.intoptions['bvptol']*1E-1}
 
-        root_out = root(bvp_minimize_function, self.y0, tol=self.intoptions['bvptol'],
+        root_out = root(bvp_minimize_function, self.y0,
+                        tol=self.intoptions['bvp_ftol'],
                         method=root_method, options=options)
 
         # Check solve success
@@ -383,7 +389,7 @@ class pBase(object):
             raise RuntimeError("bvpsolve: " + root_out.message)
 
         # Check output convergence
-        if np.linalg.norm(root_out.qtf) > self.intoptions['bvptol']*1E4:
+        if np.linalg.norm(root_out.qtf) > self.intoptions['bvp_ftol']*1E4:
             raise RuntimeError("bvpsolve: nonconvergent")
 
         # save output to self.y0
@@ -806,7 +812,7 @@ class pBase(object):
 
         self.prc_ts = np.linspace(0, self.y0[-1], res)
         P = odeint(adj_func, seed, self.prc_ts)[::-1] # Adjoint matrix
-        self.sPRC = P/self.dydt(self.y0[:-1])[state_ind]
+        self.sPRC = self._t_to_phi(P/self.dydt(self.y0[:-1])[state_ind])
         dfdp = np.array([self.dfdp(self.lc(t)) for t in self.prc_ts])
         self.pPRC = np.array([self.sPRC[i].dot(dfdp[i]) for i in
                              xrange(len(self.sPRC))])
