@@ -90,6 +90,11 @@ class pBase(object):
     def _phi_to_t(self, phi): return phi*self.y0[-1]/(2*np.pi)
     def _t_to_phi(self, t): return (2*np.pi)*t/self.y0[-1]
 
+    def lc_phi(self, phi):
+        """ interpolate the selc.lc interpolation object using a time on
+        (0,2*pi) """
+        return self.lc(self._phi_to_t(phi%(2*np.pi)))
+
     def pClassSetup(self):
         """
         Sets up a new Periodic subclass. This class is a c++ class I
@@ -145,7 +150,7 @@ class pBase(object):
 
         self.modlT.setOption("name","T-shifted model")
 
-    def findstationary(self,guess=None):
+    def findstationary(self, guess=None):
         """
         Find the stationary points dy/dt = 0, and check if it is a
         stable attractor (non oscillatory).
@@ -164,12 +169,10 @@ class pBase(object):
         """
         try:
             self.corestationary(guess)
-            if all(np.real(self.eigs) < 0):
-                return 1
-            else:
-                return 0
-        except Exception:
-            return -1
+            if all(np.real(self.eigs) < 0): return 1
+            else: return 0
+
+        except Exception: return -1
 
     def corestationary(self,guess=None):
         """
@@ -220,7 +223,8 @@ class pBase(object):
         self.integrator.setOption("abstol", self.intoptions['transabstol'])
         self.integrator.setOption("reltol", self.intoptions['transreltol'])
         self.integrator.setOption("tf", tf)
-        self.integrator.setOption("max_num_steps", self.intoptions['transmaxnumsteps'])
+        self.integrator.setOption("max_num_steps",
+                                  self.intoptions['transmaxnumsteps'])
         self.integrator.setOption("disable_internal_warnings", True)
         self.integrator.init()
         self.integrator.setInput((self.y0[:-1]), cs.INTEGRATOR_X0)
@@ -814,8 +818,9 @@ class pBase(object):
         P = odeint(adj_func, seed, self.prc_ts)[::-1] # Adjoint matrix
         self.sPRC = self._t_to_phi(P/self.dydt(self.y0[:-1])[state_ind])
         dfdp = np.array([self.dfdp(self.lc(t)) for t in self.prc_ts])
-        self.pPRC = np.array([self.sPRC[i].dot(dfdp[i]) for i in
-                             xrange(len(self.sPRC))])
+        # Must rescale f to \hat{f}, inverse of rescaling t
+        self.pPRC = np.array([self.sPRC[i].dot(self._phi_to_t(dfdp[i]))
+                              for i in xrange(len(self.sPRC))])
         self.rel_pPRC = self.pPRC*np.array(self.paramset)
 
         # Create interpolation object for the state phase response curve
@@ -921,6 +926,8 @@ class pBase(object):
         amp_change = self.sarc_int.output(cs.INTEGRATOR_QF).toArray()
         self.sarc_int.reset()
 
+        amp_change *= (2*np.pi)/(self.y0[-1])
+
         return amp_change
 
 
@@ -956,7 +963,7 @@ class pBase(object):
     def findPARC(self, param, res=100, trans=3, rel=False):
         """ Find ARC from temporary perturbation to parameter value """
         t_arc = np.linspace(0, self.y0[-1], res)
-        dfdp = self.dfdp(self.lc(t_arc))[:,:,param]
+        dfdp = self._phi_to_t(self.dfdp(self.lc(t_arc))[:,:,param])
         t_arc, arc = self._findARC_seed(dfdp, res, trans)
         if rel: arc *= self.paramset[param]/self.avg
         return t_arc, arc
@@ -999,19 +1006,19 @@ class pBase(object):
             self.sarc_int.setInput(x0, cs.INTEGRATOR_X0)
             self.sarc_int.setInput(param, cs.INTEGRATOR_P)
             self.sarc_int.evaluate()
-            amp_change += [self.sarc_int.output(
-                cs.INTEGRATOR_QF).toArray()]
+            out = self.sarc_int.output(cs.INTEGRATOR_QF).toArray()
+            amp_change += [out*2*np.pi/self.y0[-1]]
+                                        
 
         #[time, state_out, state_in]
         self.sARC = np.array(amp_change)
         dfdp = np.array([self.dfdp(self.lc(t)) for t in self.arc_ts])
-        self.pARC = np.array([self.sARC[i].dot(dfdp[i]) for i in
-                             xrange(len(self.sARC))])
+        self.pARC = np.array([self.sARC[i].dot(self._phi_to_t(dfdp[i]))
+                              for i in xrange(len(self.sARC))])
+
         self.rel_pARC = (np.array(self.paramset) * self.pARC /
                          np.atleast_2d(self.avg).T)
                        
-
-
 
     def remove_unpickleable_objects(self):
         """
@@ -1027,6 +1034,83 @@ class pBase(object):
 
         delattr(self, 'lc')
         self.removed_attrs += ['lc']
+
+
+    def _simulate(self, ts, y0=None, paramset=None):
+        """ Simulate the class, outputing the solution at the times
+        specified by ts. Optional inputs of y0 and paramsets to use ones
+        other than those currently in the class """
+
+        if y0 is None: y0 = self.y0[:-1]
+        if paramset is None: paramset = self.paramset
+
+        int = cs.CVodesIntegrator(self.model)
+        int.setOption("abstol"       , self.intoptions['lc_abstol'])
+        int.setOption("reltol"       , self.intoptions['lc_reltol'])
+        int.setOption("max_num_steps", self.intoptions['lc_maxnumsteps'])
+        int.setOption("tf"           , self.y0[-1])
+
+        sim = cs.Simulator(int, ts)
+        sim.init()
+        
+        # Input Arguments
+        sim.setInput(y0, cs.INTEGRATOR_X0)
+        sim.setInput(paramset, cs.INTEGRATOR_P)
+        sim.evaluate()
+        return sim.output().toArray()
+
+    def phase_of_point(self, point, error=False, tol=1E-3):
+        """ Finds the phase at which the distance from the point to the
+        limit cycle is minimized. phi=0 corresponds to the definition of
+        y0, returns the phase and the minimum distance to the limit
+        cycle """
+
+        point = np.asarray(point)
+        for i in xrange(100):
+            dist = cs.ssym("dist")
+            x = self.model.inputSX(cs.DAE_X)
+            ode = self.model.outputSX()
+            dist_ode = cs.sumAll(2*(x - point)*ode)
+
+            cat_x   = cs.vertcat([x, dist])
+            cat_ode = cs.vertcat([ode, dist_ode])
+
+            dist_model = cs.SXFunction(
+                cs.daeIn(t=self.model.inputSX(cs.DAE_T), x=cat_x,
+                         p=self.model.inputSX(cs.DAE_P)),
+                cs.daeOut(ode=cat_ode))
+
+            dist_model.setOption("name","distance model")
+
+            dist_0 = ((self.y0[:-1] - point)**2).sum()
+            cat_y0 = np.hstack([self.y0[:-1], dist_0, self.y0[-1]])
+
+            roots_class = pBase(dist_model, self.paramset, cat_y0)
+            # roots_class.solveBVP()
+            roots_class.roots()
+
+            phase = self._t_to_phi(roots_class.Tmin[-1])
+            distance = roots_class.Ymin[-1]
+
+            if distance < tol: return phase, distance
+
+            intr = cs.CVodesIntegrator(self.model)
+            intr.setOption("abstol", self.intoptions['transabstol'])
+            intr.setOption("reltol", self.intoptions['transreltol'])
+            intr.setOption("tf", self.y0[-1])
+            intr.setOption("max_num_steps",
+                           self.intoptions['transmaxnumsteps'])
+            intr.setOption("disable_internal_warnings", True)
+            intr.init()
+            intr.setInput(point, cs.INTEGRATOR_X0)
+            intr.setInput(self.paramset, cs.INTEGRATOR_P)
+            intr.evaluate()
+            point = intr.output().toArray().flatten()
+
+        raise RuntimeError("Point failed to converge to limit cycle")
+        
+
+
 
 
 if __name__ == "__main__":

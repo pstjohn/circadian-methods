@@ -6,6 +6,8 @@
 # >>> *** make plots here ***
 # >>> fig.tight_layout(**layout_pad)
 
+from CommonFiles.Utilities import lighten_color, color_range
+
 def PlotOptions(uselatex=False):
 
     import matplotlib
@@ -64,12 +66,18 @@ layout_pad = {
 def plot_gray_zero(ax, **kwargs):
     ax.axhline(0, ls='--', color='grey', **kwargs)
 
-def format_2pi_axis(ax):
+def format_2pi_axis(ax, x=True, y=False):
     import numpy as np
-    ax.set_xticks([0, np.pi/2, np.pi, 3*np.pi/2, 2*np.pi])
-    ax.set_xlim([0, 2*np.pi])
-    ax.set_xticklabels(['$0$', r'$\nicefrac{\pi}{2}$', r'$\pi$',
-                        r'$\nicefrac{3\pi}{2}$', r'$2\pi$'])
+    if x:
+        ax.set_xticks([0, np.pi/2, np.pi, 3*np.pi/2, 2*np.pi])
+        ax.set_xlim([0, 2*np.pi])
+        ax.set_xticklabels(['$0$', r'$\nicefrac{\pi}{2}$', r'$\pi$',
+                            r'$\nicefrac{3\pi}{2}$', r'$2\pi$'])
+    if y:
+        ax.set_yticks([-np.pi, -np.pi/2, 0, np.pi/2, np.pi])
+        ax.set_ylim([-np.pi, np.pi])
+        ax.set_yticklabels([r'$-\pi$', r'$-\nicefrac{\pi}{2}$','$0$',
+                            r'$\nicefrac{\pi}{2}$', r'$\pi$'])
 
 # def highlight_xrange(ax, xmin, xmax, color='y', alpha=0.5, **kwargs):
 #     ax.axvspan(xmin, xmax, color=color, alpha=alpha, **kwargs)

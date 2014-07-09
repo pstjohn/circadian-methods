@@ -351,8 +351,8 @@ class fnlist(list):
     def __call__(self,*args,**kwargs):
         return np.array([entry(*args,**kwargs) for entry in self])
 
-def color_range(NUM_COLORS):
-    cm = matplotlib.cm.get_cmap('gist_rainbow')
+def color_range(NUM_COLORS, cm=None):
+    if cm is None: cm = matplotlib.cm.get_cmap('gist_rainbow')
     return (cm(1.*i/NUM_COLORS) for i in range(NUM_COLORS))
 
 

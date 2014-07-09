@@ -28,11 +28,6 @@ class Amplitude(pBase):
     will pick this up at a later time.
     """
 
-    def lc_phi(self, phi):
-        """ interpolate the selc.lc interpolation object using a time on
-        (0,2*pi) """
-        return self.lc(self._phi_to_t(phi))
-
     def _create_arc_integrator(self, trans_duration=3, res=100,
                                pulse_res=20):
         """ Create integrator and simulator objects for later use.
@@ -49,7 +44,7 @@ class Amplitude(pBase):
         self.arcint.init()
         #
         # Simulate the perturbed trajectory for trans_duration.
-        tf = self.y0[-1]*trans_duration
+        tf = 2*np.pi*trans_duration
         traj_res = int(res*trans_duration)
         self.arc_traj_ts = np.linspace(0, tf, num=traj_res,
                                        endpoint=True) 
@@ -73,35 +68,30 @@ class Amplitude(pBase):
         trajectory = self.arcsim.output().toArray()
 
         yend = trajectory[-5:] # Take the last 5 points
-        tend = (self.arc_traj_ts[-1]%self.y0[-1] +
-                self._phi_to_t(pulse['phi']))
-        tdiff = self.arc_traj_ts[-1] - self.arc_traj_ts[-2]
-        t_step_arr = np.arange(-4, 1) * tdiff
+        phi_end = (self.arc_traj_ts[-1] + pulse['phi'])%(2*np.pi)
+        phi_diff = self.arc_traj_ts[-1] - self.arc_traj_ts[-2]
+        phi_step_arr = np.arange(-4, 1) * phi_diff
 
-        def resy(t):
+        def resy(phi):
             return np.linalg.norm(yend - 
-                                  self.lc((t + t_step_arr)%self.y0[-1]))
+                                  self.lc_phi(phi + phi_step_arr))
 
         # Minimize resy(t)
-        tvals = np.linspace(0, self.y0[-1], num=25)
-        tguess = tvals[np.array([resy(t) for t in tvals]).argmin()]
-        tmin = opt.fmin(resy, tguess, disp=0)[0]%self.y0[-1]
-        assert resy(tmin)/(5*self.NEQ) < 1E-3, "transient not converged"
+        phi_vals = np.linspace(0, 2*np.pi, num=25)
+        phi_guess = phi_vals[np.array([resy(phi) for phi in
+                                       phi_vals]).argmin()]
+        p_min = opt.fmin(resy, phi_guess, disp=0)[0]%(2*np.pi)
+        assert resy(p_min)/(5*self.NEQ) < 1E-3, "transient not converged"
 
-        if tmin > self.y0[-1]/2: tmin +=-self.y0[-1]
 
-        tdiff = tmin-tend
+        phi_diff = normalize(p_min - phi_end)
 
-        # rescale tdiff from -T/2 to T/2
-        tdiff = tdiff%self.y0[-1]
-        if tdiff > self.y0[-1]/2: tdiff += -self.y0[-1]
-
-        reference = self.lc((self.arc_traj_ts + tend + tdiff)%self.y0[-1])
+        reference = self.lc_phi(self.arc_traj_ts + phi_end + phi_diff)
 
         return_dict = {
             'traj'   : trajectory,
             'ref'    : reference,
-            'p_diff' : self._t_to_phi(tdiff)}
+            'p_diff' : phi_diff}
 
         if pulse['type'] is 'param':
             return_dict['pulse_traj'] = pulse['traj']
@@ -151,7 +141,7 @@ class Amplitude(pBase):
                 'x0' : x0,
                 'phi' : phi,
                 'traj' : pulse_trajectory,
-                'ts' : np.linspace(self._phi_to_t(-pulse_duration), 0,
+                'ts' : np.linspace(-pulse_duration, 0,
                                    num=len(pulse_trajectory),
                                    endpoint=True),
             }
@@ -262,7 +252,7 @@ class Amplitude(pBase):
 
 
     def calc_population_responses(self, input_phase_distribution,
-                                  tarc=True):
+                                  tarc=False):
         """ Calculate the population level PRC and ARC resulting from
         the perturbation in self.pulse_creator on the population with
         std sigma """
@@ -357,7 +347,7 @@ class Amplitude(pBase):
         pd = self.phase_distribution
         if approx:
             mean_p, std_p = mean_std(self.z_hat(phi_offset))
-            pt = gaussian_phase_distribution(mean_p, std_p, pd.period,
+            pt = gaussian_phase_distribution(mean_p, std_p,
                                              pd.phase_diffusivity)
         else:
             pt = pd.invert(self.phis, self.prc_single_cell,
@@ -368,7 +358,7 @@ class Amplitude(pBase):
 
         
 class phase_distribution(object):        
-    def __init__(self, fo_phi, period, phase_diffusivity,
+    def __init__(self, fo_phi, phase_diffusivity,
                  invert_res=70):
         """ class to create a function describing the evolution of a
         population of oscillators with initial normalized phase
@@ -377,14 +367,15 @@ class phase_distribution(object):
         and t, as well as find the mean value of functions """
 
         self.fo_phi = fo_phi
-        self.period = period
+        self.period = 2*np.pi
         self.phase_diffusivity = phase_diffusivity
         self.invert_res = invert_res
 
         phis = np.linspace(0, 2*np.pi, 100)
         pdf = self.fo_phi(phis)
         z_bar = p_integrate(phis, np.exp(1j * phis)*pdf)
-        self.mu, self.sigma = mean_std(z_bar)
+        self.mu, self.length = mean_length(z_bar)
+        self.sigma = np.sqrt(-2*np.log(self.length))
         
 
 
@@ -508,8 +499,8 @@ class phase_distribution(object):
 
         f_p_interp = PeriodicSpline(iphis, f_perturbed)
 
-        return phase_distribution(f_p_interp, self.period,
-                                  self.phase_diffusivity)
+        return phase_distribution(f_p_interp, self.phase_diffusivity,
+                                  invert_res=self.invert_res)
 
 
     def integrate(self, a, b, phi_offset=0):
@@ -522,19 +513,21 @@ class gaussian_phase_distribution(phase_distribution):
     is a wrapped gaussian function, with methods that take into account
     the more tractable nature of gaussian distributions. """
 
-    def __init__(self, mu, sigma, period, phase_diffusivity,
+    def __init__(self, mu, sigma, phase_diffusivity,
                  invert_res=60):
         """ mu and sigma should be the mean and standard deviation of
         the trajectory. """
         
         # General phase distribution variables
         self.phase_diffusivity = phase_diffusivity
-        self.period = period
+        self.period = 2*np.pi
         self.invert_res = invert_res
 
         # Gaussian specific variables
         self.mu = mu%(2*np.pi)
         self.sigma = sigma
+        self.length = np.exp((self.sigma**2)/(-2))
+
 
         self.fo_phi = lambda phis: wrapped_gaussian(phis%(2*np.pi), mu,
                                                     sigma)
@@ -660,10 +653,12 @@ def mean_length(z):
 def normalize(angles, end=np.pi):
     """ normalize angles to the range -Pi, Pi """
 
+    angles = np.atleast_1d(angles)
+
     angles = angles % (2*np.pi)
     angles[angles > end] += -2*np.pi
 
-    return angles
+    return angles.squeeze()
 
 
 
@@ -753,7 +748,7 @@ if __name__ == "__main__":
     # format_2pi_axis(axmatrix[1])
 
 
-    period = test.y0[-1]
+    period = 2*np.pi
     mean = np.pi/4
     std = 0.5
     decay = 0.01
@@ -761,8 +756,7 @@ if __name__ == "__main__":
     po = wrapped_gaussian(phis, mean, std)
     po_interp = PeriodicSpline(phis, po)
     
-    test_population = gaussian_phase_distribution(mean, std, period,
-                                                  decay,
+    test_population = gaussian_phase_distribution(mean, std, decay,
                                                   invert_res=60)
     perturbed_popul = test_population.invert(test.phis,
                                              test.prc_single_cell)
@@ -770,8 +764,7 @@ if __name__ == "__main__":
     test.calc_population_responses(test_population, tarc=False)
 
     mean_p, std_p = mean_std(test.z_hat(0))
-    mean_pert_pop = gaussian_phase_distribution(mean_p, std_p, period,
-                                                decay)
+    mean_pert_pop = gaussian_phase_distribution(mean_p, std_p, decay)
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -820,7 +813,7 @@ if __name__ == "__main__":
 
 
     t0 = 0.
-    ts_ref = np.linspace(-test.y0[-1], test.arc_traj_ts[-1], 250)
+    ts_ref = np.linspace(-2*np.pi, test.arc_traj_ts[-1], 250)
     try: ts = test.comb_interp.ts
     except AttributeError: ts = test.traj_interp.ts
 
@@ -841,7 +834,7 @@ if __name__ == "__main__":
     # Fig 3 : Test x(t) functions
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(ts_ref, test.lc(ts_ref+test._phi_to_t(phi_offset))[:,state],
+    ax.plot(ts_ref, test.lc_phi(ts_ref+phi_offset)[:,state],
             'k--', label=r'$x^\gamma(t)$')
     ax.plot(ts_ref, xbar[:,state], ':', label=r'$\bar{x}(t)$')
     ax.plot(ts, xhat[:,state], 'r', label=r'$\hat{x}(t)$')

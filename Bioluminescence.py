@@ -20,7 +20,7 @@ class Bioluminescence(object):
     population level rhythms. Includes algorithms for smoothing,
     detrending, and curve fitting. """
 
-    def __init__(self, x, y):
+    def __init__(self, x, y, period_guess=None):
         """ x, y should contain time and expression level, respectively,
         of a circadian oscillation """
 
@@ -30,7 +30,11 @@ class Bioluminescence(object):
         self.xvals = {'raw' : x}
         self.yvals = {'raw' : y}
 
-        self.period = estimate_period(x, y)
+        period_low  = period_guess/2. if period_guess else 1
+        period_high = period_guess*2. if period_guess else 100
+        self.period = estimate_period(x, y, period_low=period_low,
+                                      period_high=period_high)
+
         self.even_resample(res=len(x))
     
 
@@ -41,11 +45,25 @@ class Bioluminescence(object):
         self.yvals['even'] = self.y
 
 
-    def detrend(self, a=0.05):
+    def _exp_detrend(self):
+        """ Some bioluminescence profiles have mean dynamics
+        well-described by an exponentially decaying sinusoid. """
+
+        a,d = fit_exponential(self.x, self.y)
+        mean = a*np.exp(self.x*d)
+        self.y = self.y - mean
+
+        self.yvals['detrended'] = self.y
+        self.yvals['mean'] = mean
+
+
+    def detrend(self, a=0.05, detrend_period=None):
         """ Detrend the data """
 
+        if detrend_period is None: detrend_period = self.period
+
         self.x, self.y, mean = detrend(self.x, self.y,
-                                       est_period=self.period,
+                                       est_period=detrend_period,
                                        ret='both', a=a)
 
         self.yvals['detrended'] = self.y
@@ -60,11 +78,19 @@ class Bioluminescence(object):
         self.yvals['filt'] = self.y
 
 
+    def estimate_sinusoid_pars(self, t_trans=0.):
+        """ Estimate decaying sinusoid parameters without fitting """
+
+        self.start_ind = start_ind = ((self.x - t_trans)**2).argmin()
+        return estimate_sinusoid_pars(self.x[start_ind:],
+                                      self.y[start_ind:])
+
+
     def fit_sinusoid(self, t_trans=0., weights=None):
         """ Fit a decaying sinusoid, ignoring the part of the signal
         with x less than t_trans """
 
-        start_ind = ((self.x - t_trans)**2).argmin()
+        self.start_ind = start_ind = ((self.x - t_trans)**2).argmin()
 
         pars, conf = fit_decaying_sinusoid(self.x[start_ind:],
                                            self.y[start_ind:],
@@ -75,6 +101,16 @@ class Bioluminescence(object):
 
         self.yvals['model'] = decaying_sinusoid(self.x,
                                                 *_pars_to_plist(pars))
+
+    def pseudo_r2(self):
+        """Calculates the pseudo-r2 value for the fitted sinusoid."""
+        y_reg = self.yvals['model'][self.start_ind:]
+        y_dat = self.y[self.start_ind:]
+            
+        SSres = ((y_dat - y_reg)**2).sum()
+        SStot = ((y_dat - y_dat.mean())**2).sum()
+        return 1 - SSres/SStot
+
 
     def amplify_decay(self, amp=None, decay=None):
         """ Function to amplify the tail end of a trace by removing the
@@ -221,6 +257,10 @@ class Bioluminescence(object):
         components = components + np.atleast_2d(baselines).T
         for comp, color in zip(components, color_range(self.dwt_bins)):
             ax.plot(self.x, comp, color=color)
+
+        return ax
+
+
 
         
 
@@ -393,7 +433,8 @@ def periodogram(x, y, period_low=1, period_high=35, res=200):
 
 def estimate_period(x, y, period_low=1, period_high=100, res=200):
     """ Find the most likely period using a periodogram """
-    periods, pgram = periodogram(x, y)
+    periods, pgram = periodogram(x, y, period_low=period_low,
+                                 period_high=period_high, res=res)
     return periods[pgram.argmax()]
 
 
@@ -485,6 +526,7 @@ def fit_decaying_sinusoid(x, y, weights=None):
 
     p0 = _pars_to_plist(estimate_sinusoid_pars(x, y))
     if weights is None: weights = 1/np.exp(-p0[-1]*x)
+    if weights is 'capped': weights = 0.1 + 1/np.exp(-p0[-1]*x)
 
     popt, pcov = optimize.curve_fit(decaying_sinusoid, x, y, p0=p0,
                                     sigma=weights, maxfev=5000)
@@ -498,8 +540,12 @@ def fit_decaying_sinusoid(x, y, weights=None):
         popt[2] += np.pi
     popt[2] = popt[2]%(2*np.pi)
 
-    pars = _plist_to_pars(popt)
+    if popt[0] < 0:
+        popt[0] = abs(popt[0])
+        popt[2] += np.pi
+    popt[2] = popt[2]%(2*np.pi)
     pars_confidence = _plist_to_pars(relative_confidence)
+    pars = _plist_to_pars(popt)
 
     return pars, pars_confidence
 
