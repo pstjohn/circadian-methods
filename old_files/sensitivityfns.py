@@ -217,21 +217,6 @@ class Sensitivity(pBase):
         self.Samp = Splus - Sminus
         self.relSamp = (self.Samp.T / (self.Ymax - self.Ymin)).T * self.paramset
         
-    def modifiedModel(self):
-        import casadi as cs
-        pSX = self.model.inputSX(cs.DAE_P)
-        pTSX = (self.NP+1)*[[]]
-        T = cs.SX("T")
-        for i in range(0,self.NP):
-            pTSX[i] = pSX[i]
-        pTSX[self.NP] = T
-        ffcn_in = cs.DAE_NUM_IN * [[]]
-        ffcn_in[cs.DAE_T] = self.model.inputSX(cs.DAE_T)
-        ffcn_in[cs.DAE_X] = self.model.inputSX(cs.DAE_X)
-        ffcn_in[cs.DAE_P] = pTSX
-        self.modlT = cs.SXFunction(ffcn_in,[self.model.outputSX()*T])
-        self.modlT.setOption("name","T-shifted model")
-            
     def barP(self,senstype):
         import pylab as p
         import numpy as np
@@ -249,3 +234,10 @@ class Sensitivity(pBase):
         return fig
         
         
+
+if __name__ == "__main__":
+    from CommonFiles.Models.simplified_tysonmodel import (model,
+                                                          paramset,
+                                                          y0in)
+
+    sens = Sensitivity(model(), paramset, y0in)

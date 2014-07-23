@@ -75,7 +75,7 @@ class pBase(object):
             'lc_abstol'        : 1E-11,
             'lc_reltol'        : 1E-9,
             'lc_maxnumsteps'   : 40000,
-            'lc_res'           : 2000,
+            'lc_res'           : 200,
             'int_abstol'       : 1E-8,
             'int_reltol'       : 1E-6,
         }
@@ -659,8 +659,10 @@ class pBase(object):
         integrator = cs.CVodesIntegrator(self.model)
         integrator.setOption("abstol", self.intoptions['sensabstol'])
         integrator.setOption("reltol", self.intoptions['sensreltol'])
-        integrator.setOption("max_num_steps", self.intoptions['sensmaxnumsteps'])
-        integrator.setOption("sensitivity_method", self.intoptions['sensmethod']);
+        integrator.setOption("max_num_steps",
+                             self.intoptions['sensmaxnumsteps'])
+        integrator.setOption("sensitivity_method",
+                             self.intoptions['sensmethod']);
         integrator.setOption("t0", 0)
         integrator.setOption("tf", self.y0[-1])
         integrator.setOption("numeric_jacobian", True)
@@ -706,14 +708,17 @@ class pBase(object):
 
         integrator.setOption("abstol", self.intoptions['sensabstol'])
         integrator.setOption("reltol", self.intoptions['sensreltol'])
-        integrator.setOption("max_num_steps", self.intoptions['sensmaxnumsteps'])
-        integrator.setOption("sensitivity_method", self.intoptions['sensmethod']);
+        integrator.setOption("max_num_steps",
+                             self.intoptions['sensmaxnumsteps'])
+        integrator.setOption("sensitivity_method",
+                             self.intoptions['sensmethod']);
         integrator.setOption("t0", 0)
         integrator.setOption("tf", self.y0[-1])
         integrator.setOption("numeric_jacobian", True)
         integrator.setOption("number_of_fwd_dir", self.NP)
         integrator.setOption("fsens_err_con", 1)
-        integrator.setOption("fsens_abstol", self.intoptions['sensabstol'])
+        integrator.setOption("fsens_abstol",
+                             self.intoptions['sensabstol'])
         integrator.setOption("fsens_reltol", self.intoptions['sensreltol'])
         integrator.init()
         integrator.setInput(self.y0[:-1],cs.INTEGRATOR_X0)
@@ -758,6 +763,8 @@ class pBase(object):
         for i in xrange(res):
             Z[i] = S[i] + (ts[i]/self.y0[-1])*np.outer(self.dydt(y[i]),
                                                        self.dTdp)
+
+        self.Z = Z
 
         # Periodic W matrix, a projection of the Z matrix. Captures the
         # change in amplitude of the state trajectory without taking

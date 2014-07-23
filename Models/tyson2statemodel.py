@@ -57,3 +57,6 @@ def create_class():
     return pBase(model(), paramset, y0in)
 
 
+if __name__ == "__main__":
+    from CommonFiles import pBase
+    test_base = pBase(model(), paramset, y0in)

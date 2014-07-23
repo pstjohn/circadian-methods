@@ -81,10 +81,12 @@ class Bioluminescence(object):
     def estimate_sinusoid_pars(self, t_trans=0.):
         """ Estimate decaying sinusoid parameters without fitting """
 
-        self.start_ind = start_ind = ((self.x - t_trans)**2).argmin()
+        self.start_ind = start_ind = self._ind_from_x(t_trans)
         return estimate_sinusoid_pars(self.x[start_ind:],
                                       self.y[start_ind:])
 
+    def _ind_from_x(self, x):
+        return ((self.x - x)**2).argmin()
 
     def fit_sinusoid(self, t_trans=0., weights=None):
         """ Fit a decaying sinusoid, ignoring the part of the signal
@@ -120,7 +122,7 @@ class Bioluminescence(object):
         if decay is None: decay = self.sinusoid_pars['decay']
         if amp is None: amp = self.sinusoid_pars['amplitude']
 
-        exp_traj = amp*np.exp(-decay * self.x)
+        exp_traj = amp*np.exp(decay * self.x)
         
         # Normalize by first value
         # exp_traj *= 1./exp_traj[0]
@@ -214,7 +216,8 @@ class Bioluminescence(object):
 
 
 
-    def plot_dwt_components(self, ax, space=1.0, bins=None, baselines=None):
+    def plot_dwt_components(self, ax, space=1.0, bins=None,
+                            baselines=None):
         """ Plot the decomposition from the dwt on the same set of axes,
         similar to figure 4 in DOI:10.1177/0748730411416330. space is
         relative spacing to leave between each component, bins is a
@@ -260,9 +263,33 @@ class Bioluminescence(object):
 
         return ax
 
+    def hilbert_envelope(self, y=None):
+        """ Calculate the envelope of the function (amplitude vs time)
+        using the analytical signal generated through a hilbert
+        transform """
 
+        if y is None: y = self.y
+        return abs(signal.hilbert(y))
 
+    
+    def fit_hilbert_envelope(self, t_start=None, t_end=None):
+        """ Fit an exponential function to the hilbert envelope. Due to
+        ringing at the edges, it is a good idea to cut some time from
+        the start and end of the sinusoid (defaults to half a period at
+        each edge) """
+
+        if t_start is None: t_start = self.period/2
+        if t_end is None: t_end = self.period/2
+
+        start = self._ind_from_x(t_start)
+        end = self._ind_from_x(t_end)
+
+        envelope = self.hilbert_envelope()[start:end]
+        amplitude, decay = fit_exponential(self.x[start:end], envelope)
+
+        return amplitude, decay
         
+
 
 
 
@@ -334,7 +361,7 @@ def bandpass_filter(x, y, low=10, high=40., order=5):
     return x, y_filt
 
 
-def lowpass_filter(x, y, cutoff_period=15., order=5):
+def lowpass_filter(x, y, cutoff_period=5., order=5):
     """ Filter the data with a lowpass filter, removing noise with a
     critical frequency corresponding to the number of hours specified by
     cutoff_period. Assumes a period of 24h, with data in x in the units
@@ -345,7 +372,7 @@ def lowpass_filter(x, y, cutoff_period=15., order=5):
     nyquist = (x[1] - x[0])/2.
     cutoff_freq = 1/((cutoff_period/(x.max() - x.min()))*len(x))
 
-    b, a = signal.butter(5, cutoff_freq/nyquist)
+    b, a = signal.butter(order, cutoff_freq/nyquist)
     y_filt = signal.filtfilt(b, a, y)
 
     return x, y_filt
@@ -428,7 +455,10 @@ def periodogram(x, y, period_low=1, period_high=35, res=200):
     # periods = np.logspace(np.log10(period_low), np.log10(period_high),
     #                       res)
     freqs = 2*np.pi/periods
-    return periods, signal.lombscargle(x, y, freqs)
+    try: pgram = signal.lombscargle(x, y, freqs)
+    # Scipy bug, will be fixed in 1.5.0
+    except ZeroDivisionError: pgram = signal.lombscargle(x+1, y, freqs)
+    return periods, pgram
 
 
 def estimate_period(x, y, period_low=1, period_high=100, res=200):
@@ -508,7 +538,7 @@ def decaying_sinusoid(x, amplitude, period, phase, decay):
     """ Function to generate the y values for a fitted decaying sinusoid
     specified by the dictionary 'pars' """
     return (amplitude * np.cos((2*np.pi/period)*x + phase) *
-            np.exp(-decay*x))
+            np.exp(decay*x))
 
 def _pars_to_plist(pars):
     pars_list = ['amplitude', 'period', 'phase', 'decay']
