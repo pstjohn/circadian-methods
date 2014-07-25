@@ -228,7 +228,7 @@ if __name__ == "__main__":
                   -2.928,   11.604,   16.506,   16.048,   10.81 ,
                   3.272, np.nan])
 
-    master = DecayingSinusoid(x, y, max_degree=10)
+    master = DecayingSinusoid(x, y, max_degree=7)
     master.report()
 
 
