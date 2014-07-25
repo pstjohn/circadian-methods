@@ -30,10 +30,14 @@ class Bioluminescence(object):
         self.xvals = {'raw' : x}
         self.yvals = {'raw' : y}
 
-        period_low  = period_guess/2. if period_guess else 1
-        period_high = period_guess*2. if period_guess else 100
-        self.period = estimate_period(x, y, period_low=period_low,
-                                      period_high=period_high)
+        if not period_guess:
+            period_low  = period_guess/2. if period_guess else 1
+            period_high = period_guess*2. if period_guess else 100
+            self.period = estimate_period(x, y, period_low=period_low,
+                                          period_high=period_high)
+        else:
+            # Until scipy fixes their periodogram issues
+            self.period = period_guess
 
         self.even_resample(res=len(x))
     
