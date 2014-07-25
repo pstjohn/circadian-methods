@@ -3,6 +3,9 @@
 # VIM swap files
 *.sw[op]
 
+# Profiled functions
+*.profile
+
 # Saved figures and pickled data
 *.p
 *.pdf

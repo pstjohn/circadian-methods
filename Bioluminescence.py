@@ -512,12 +512,15 @@ def estimate_sinusoid_pars(x, y):
     """
 
     # Estimate exponential decay
-    # Get locations of extrema
-    inds = np.where(np.diff(np.sign(np.diff(y))))[0] + 1
-    y_extreme = np.abs(y[inds])
-    x_extreme = x[inds]
+    envelope = abs(signal.hilbert(y))
+    a, b = fit_exponential(x, envelope)
 
-    a, b = fit_exponential(x_extreme, y_extreme)
+    # Get locations of extrema
+    # inds = np.where(np.diff(np.sign(np.diff(y))))[0] + 1
+    # y_extreme = np.abs(y[inds])
+    # x_extreme = x[inds]
+
+    # a, b = fit_exponential(x_extreme, y_extreme)
     
 
     # Estimate period, phase, and amp using fourier methods

@@ -11,6 +11,7 @@ class SingleModel(object):
         self.y = y
         self.n = len(x)
         self.p = 5 + degree # 4 for sinusoid model, deg+1 for baseline
+        # self.p = 1 + degree # 4 for sinusoid model, deg+1 for baseline
         self.nb = degree
 
     
@@ -23,12 +24,14 @@ class SingleModel(object):
         # Add parameters for sinusoidal model
         params.add('amplitude', value=master.p0['amplitude'], min=0)
         params.add('period', value=master.p0['period'])
-        params.add('phase', value=master.p0['phase'], min=0,
+        params.add('phase', value=master.p0['phase']%(2*np.pi), min=0,
                    max=2*np.pi)
         params.add('decay', value=master.p0['decay'])
 
         # Add parameters for baseline model (polynomial deg=nb)
-        b_estimate = np.polyfit(self.x, self.y, self.nb)[::-1]
+        # b_estimate = np.polyfit(self.x, self.y, self.nb)[::-1]
+        b_estimate = np.polyfit(self.x, master.bio.yvals['mean'],
+                                self.nb)[::-1]
         for i, par in enumerate(b_estimate):
             params.add('bl'+str(i), value=par)
 
@@ -57,6 +60,10 @@ class SingleModel(object):
     def _aic_c(self):
         """ Bias-corrected AIC """
         return self._aic() + 2*self.p*(self.p + 1)/(self.n - self.p - 1)
+
+    def _bic(self):
+        """ Bayesian Information Criterion """
+        return self.p*np.log(self.n) - 2*self._ln_l()
 
     def _calc_r2(self):
         SSres = (self.result.residual**2).sum()
@@ -89,7 +96,7 @@ def minimize_function(params, x, y):
 
 class DecayingSinusoid(object):
     
-    def __init__(self, x, y, max_degree=6, outlier_sigma=4):
+    def __init__(self, x, y, max_degree=6, outlier_sigma=4, ic='bic'):
         """ Calculate the lowest AICc model for the given x,y data.
         max_degree specifies the maximum degree of the baseline function
         """
@@ -105,12 +112,14 @@ class DecayingSinusoid(object):
         self.opt = {
             'bio_period_guess' : 24.,
             'bio_detrend_period' : 24.,
+            'selection' : ic,
         }
 
+    def run(self):
         self._estimate_parameters()
         self._fit_models()
         self._calculate_averaged_parameters()
-
+        return self
 
     def _estimate_parameters(self):
         self.bio = Bioluminescence(self.x, self.y,
@@ -120,18 +129,22 @@ class DecayingSinusoid(object):
 
     def _fit_models(self):
         self.models = []
-        for i in xrange(self.max_degree):
+        for i in xrange(self.max_degree+1):
             self.models += [SingleModel(self.x, self.y, i)]
             self.models[-1].create_parameters(self)
             self.models[-1].fit()
 
-    def _calculate_aic_weights(self):
-        aics = np.array([model._aic_c() for model in self.models])
-        del_aics = aics - aics.min()
-        return np.exp(-0.5*del_aics)/(np.exp(-0.5*del_aics).sum())
+    def _calculate_model_weights(self):
+        if self.opt['selection'].lower() == 'aic':
+            ics = np.array([model._aic_c() for model in self.models])
+        elif self.opt['selection'].lower() == 'bic':
+            ics = np.array([model._bic() for model in self.models])
+
+        del_ics = ics - ics.min()
+        return np.exp(-0.5*del_ics)/(np.exp(-0.5*del_ics).sum())
 
     def _calculate_averaged_parameters(self):
-        self.aic_weights = aic_weights = self._calculate_aic_weights()
+        self.model_weights = model_weights = self._calculate_model_weights()
 
         param_keys = [model.params.keys() for model in self.models]
 
@@ -139,21 +152,21 @@ class DecayingSinusoid(object):
         for param in param_keys[-1]:
             self.averaged_params[param] = \
                     ModelAveragedParameter(param, self.models,
-                                           aic_weights)
+                                           model_weights)
 
     def _best_model_degree(self):
-        return self.models[self.aic_weights.argmax()].nb
+        return self.models[self.model_weights.argmax()].nb
 
     def _best_model_r2(self):
-        return self.models[self.aic_weights.argmax()]._calc_r2()
+        return self.models[self.model_weights.argmax()]._calc_r2()
 
-    def _hilbert_fit(self, t_start, t_end):
+    def _hilbert_fit(self):
         """ Estimate the decay and amplitude parameters using the
-        Bioluminescence module for a second opinion """
-        return self.bio.fit_hilbert_envelope(t_start, t_end)
+        Bioluminescence module for a second opinion. (Depricated) """
+        return (self.p0['amplitude'], self.p0['decay'])
 
     def report(self):
-        print "Fit"
+        print "Fit ({0})".format(self.opt['selection'])
         print "---"
         print "Best interpolation degree: {0}".format(
                 self._best_model_degree())
@@ -228,8 +241,23 @@ if __name__ == "__main__":
                   -2.928,   11.604,   16.506,   16.048,   10.81 ,
                   3.272, np.nan])
 
-    master = DecayingSinusoid(x, y, max_degree=7)
+    # import pandas as pd
+    # data = pd.read_pickle('../Hogenesch_data/genome_scale.p')
+    # ts = np.arange(0, 74, 2)
+    # x = np.array(ts, dtype=float)
+    # trange = [str(t) for t in ts] 
+
+    # row = data.iloc[104133]
+
+    # y = np.array(row[trange].values, dtype=float)
+
+    master = DecayingSinusoid(x[3:], y[3:], max_degree=4).run()
     master.report()
+    master.opt['selection'] = 'aic'
+    master._calculate_averaged_parameters()
+    print ''
+    master.report()
+
 
 
     # sub = SingleModel(master.x, master.y, 5)
