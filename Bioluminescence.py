@@ -292,57 +292,6 @@ class Bioluminescence(object):
         amplitude, decay = fit_exponential(self.x[start:end], envelope)
 
         return amplitude, decay
-        
-
-
-
-
-
-
-
-
-
-
-        
-
-
-
-
-        # Get local extrema
-        # max_extrema = np.array(np.diff(np.sign(np.diff(y))), dtype=bool) 
-        # max_extrema = np.where(max_extrema)[0]
-
-        # curr_res = len(self.x)
-        # dist = curr_res - max_extrema[-1]
-        # period = max_extrema[-2] - max_extrema[-1]
-        # assert dist < period, "Peak Finding Issue with BioClass.CWT"
-
-        # x_temp = self.x[:max_extrema[-1]]
-        # y_temp = y[:max_extrema[-1]]
-
-        # rev_y = y_temp[max_extrema[-2]:max_extrema[-1]][::-1]
-        # y_temp = np.hstack([y_temp, rev_y])
-        # ext_x = np.hstack([x_temp, x_temp[:period] +
-        #                    x_temp[max_extrema[-1]]])
-
-
-                             
-
-
-
-
-
-
-
-
-        
-
-            
-        
-        
-
-
-
 
 
 
@@ -511,31 +460,33 @@ def estimate_sinusoid_pars(x, y):
     phase, and amplitude of the signal in y to prepare for curve fitting
     """
 
+    hilbert = signal.hilbert(y)
+
     # Estimate exponential decay
-    envelope = abs(signal.hilbert(y))
-    a, b = fit_exponential(x, envelope)
+    envelope = abs(hilbert)
+    amplitude, decay = fit_exponential(x, envelope)
 
-    # Get locations of extrema
-    # inds = np.where(np.diff(np.sign(np.diff(y))))[0] + 1
-    # y_extreme = np.abs(y[inds])
-    # x_extreme = x[inds]
+       
+    # Fit line to phase vs time:
+    phases = np.unwrap(np.angle(hilbert))
+    weights = envelope*tukeywin(len(x), 0.5) # Prioritize high-amplitude
+    slope, intercept = np.polyfit(x, phases, 1, w=weights)
+    period = (2*np.pi/slope)
+    phase = intercept%(2*np.pi)
 
-    # a, b = fit_exponential(x_extreme, y_extreme)
+    # # Estimate period, phase, and amp using fourier methods
+    # Y = np.fft.fft(y)
+    # n = len(Y)
+    # freqs = np.fft.fftfreq(n, d=x[1] - x[0])
+    # Y = Y[1:(n/2)]
+    # freqs = freqs[1:(n/2)]
+    # ind = np.abs(Y).argmax()
     
-
-    # Estimate period, phase, and amp using fourier methods
-    Y = np.fft.fft(y)
-    n = len(Y)
-    freqs = np.fft.fftfreq(n, d=x[1] - x[0])
-    Y = Y[1:(n/2)]
-    freqs = freqs[1:(n/2)]
-    ind = np.abs(Y).argmax()
     pars = {
-        'period'    : 1/freqs[ind],
-        'phase'     : np.angle(Y)[ind],
-        # 'amplitude' : np.abs(Y[ind])/(n/2),
-        'amplitude' : a,
-        'decay'     : b,
+        'period'    : period,
+        'phase'     : phase,
+        'amplitude' : amplitude,
+        'decay'     : decay,
     }
 
     return pars
@@ -965,7 +916,47 @@ def fit_limitcycle_sinusoid(y):
     return popt
 
 
-
+def tukeywin(window_length, alpha=0.5):
+    '''The Tukey window, also known as the tapered cosine window, can be
+    regarded as a cosine lobe of width \alpha * N / 2 that is convolved
+    with a rectangle window of width (1 - \alpha / 2). At \alpha = 1 it
+    becomes rectangular, and at \alpha = 0 it becomes a Hann window.
+ 
+    We use the same reference as MATLAB to provide the same results in
+    case users compare a MATLAB output to this function output
+ 
+    Reference
+    ---------
+ 
+    http://www.mathworks.com/access/helpdesk/help/toolbox/signal/
+    tukeywin.html
+ 
+    '''
+    # Special cases
+    if alpha <= 0:
+        return np.ones(window_length) #rectangular window
+    elif alpha >= 1:
+        return np.hanning(window_length)
+ 
+    # Normal case
+    x = np.linspace(0, 1, window_length)
+    w = np.ones(x.shape)
+ 
+    # first condition 0 <= x < alpha/2
+    first_condition = x<alpha/2
+    w[first_condition] = 0.5 * (1 + np.cos(2*np.pi/alpha *
+                                           (x[first_condition] -
+                                            alpha/2) ))
+ 
+    # second condition already taken care of
+ 
+    # third condition 1 - alpha / 2 <= x <= 1
+    third_condition = x>=(1 - alpha/2)
+    w[third_condition] = 0.5 * (1 + np.cos(2*np.pi/alpha *
+                                           (x[third_condition] - 1 +
+                                            alpha/2))) 
+ 
+    return w
     
 
 

@@ -231,25 +231,30 @@ def _pop_nans(x, y):
 
 
 if __name__ == "__main__":
-    x = np.arange(0, 74, 2)
-    y = np.array([ -93.376, -128.174, -115.173,  -46.591,   35.161,
-                  92.173,  133.255,  141.447,  133.079,   68.621,
-                  11.983,  -32.145,  -57.393,  -68.721,  -60.759,
-                  -44.467,   -9.305,   21.757,   49.879,   64.551,
-                  52.803,   33.005,    2.747,  -16.561,  -37.12 ,
-                  -48.248,  -48.866,  -44.504,  -28.652,  -15.72 ,
-                  -2.928,   11.604,   16.506,   16.048,   10.81 ,
-                  3.272, np.nan])
+    import sys
 
-    # import pandas as pd
-    # data = pd.read_pickle('../Hogenesch_data/genome_scale.p')
-    # ts = np.arange(0, 74, 2)
-    # x = np.array(ts, dtype=float)
-    # trange = [str(t) for t in ts] 
+    # x = np.arange(0, 74, 2)
+    # y = np.array([ -93.376, -128.174, -115.173,  -46.591,   35.161,
+    #               92.173,  133.255,  141.447,  133.079,   68.621,
+    #               11.983,  -32.145,  -57.393,  -68.721,  -60.759,
+    #               -44.467,   -9.305,   21.757,   49.879,   64.551,
+    #               52.803,   33.005,    2.747,  -16.561,  -37.12 ,
+    #               -48.248,  -48.866,  -44.504,  -28.652,  -15.72 ,
+    #               -2.928,   11.604,   16.506,   16.048,   10.81 ,
+    #               3.272, np.nan])
 
-    # row = data.iloc[104133]
+    import pandas as pd
+    data = pd.read_pickle('../Hogenesch_data/genome_scale.p')
+    ts = np.arange(0, 74, 2)
+    x = np.array(ts, dtype=float)
+    trange = [str(t) for t in ts] 
 
-    # y = np.array(row[trange].values, dtype=float)
+    try: index = int(sys.argv[1])
+    except (IndexError, ValueError): index = 0
+
+    row = data.iloc[index]
+
+    y = np.array(row[trange].values, dtype=float)
 
     master = DecayingSinusoid(x[3:], y[3:], max_degree=4).run()
     master.report()
@@ -257,6 +262,24 @@ if __name__ == "__main__":
     master._calculate_averaged_parameters()
     print ''
     master.report()
+
+
+    if 'plot' in sys.argv:
+        from CommonFiles.PlotOptions import PlotOptions, layout_pad
+        PlotOptions(uselatex=True)
+        import matplotlib.pyplot as plt
+        master.opt['selection'] = 'bic'
+        master._calculate_averaged_parameters()
+        i = master._best_model_degree()
+        model = master.models[i]
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(master.x, master.y, '.', zorder=2)
+        ax.plot(model.x, model.yhat, '-.')
+        ax.plot(model.x, model.baseline, '--')
+        fig.tight_layout(**layout_pad)
+        plt.show()
 
 
 
