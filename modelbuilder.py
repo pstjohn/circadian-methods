@@ -5,6 +5,7 @@ Created on Sat Apr 19 16:05:55 2014
 @author: john
 """
 import stochkit_resources as stk
+import numpy as np
 import pdb
 
 #
@@ -66,14 +67,15 @@ def lineardeg(k,species):
 class SSA_builder(object):
     
     def __init__(self,species_array,param_array,y0in,param,SSAmodel,vol):
-        """ Sets up the necessary information for generating the reactions"""
+        """ Sets up the necessary information for generating the
+        reactions"""
         
-        self.species_array  = species_array
-        self.param_array  = param_array
-        self.y0in         = y0in
-        self.param        = param
-        self.SSAmodel     = SSAmodel
-        self.vol          = vol
+        self.species_array = list(species_array)
+        self.param_array   = list(param_array)
+        self.y0in          = np.array(y0in)
+        self.param         = np.array(param)
+        self.SSAmodel      = SSAmodel
+        self.vol           = vol
         
         ParamCount = len(self.param)
         EqCount    = len(self.y0in)
@@ -224,10 +226,58 @@ class SSA_builder(object):
                             propensity_function=propfcnyr,
                             annotation=annt)
         self.SSAmodel.addReaction(rxn4)
+
+    #MichaelisMenten Nonlinear (p=P)
+    def SSA_MM_C2(self, Desc, vmax, km=None, Rct=None, Prod=None,
+                 Act=None, Rep=None, mf=None, M=None):
+        """ Peter's hacked function to allow a multiplicitive
+        degradation term """
+
+        arg = self.SSA_MM(Desc, vmax, km, Rct, Prod, Act, Rep, mf)
+        rxn = self.SSAmodel.listOfReactions[Desc]
+
+        arg['vmax'] += '*' + M
+
+        propfcn = (arg['vmax'] + arg['rctmult'] + arg['actmult'] + '/('
+                   + arg['km0'] + arg['rctsum'] + arg['actsum'] +
+                   arg['repsum'] + ')')
+
+        rxn.propensity_function = propfcn
+
         
+    #MichaelisMenten Nonlinear (p=P)
+    def SSA_MM_P(self, Desc, vmax, km=None, Rct=None, Prod=None,
+                 Act=None, Rep=None, mf=None, P=None):
+        """ Peter's hacked function to allow for third order hill
+        kinetics """
+
+        arg = self.SSA_MM(Desc, vmax, km, Rct, Prod, Act, Rep, mf)
+        rxn = self.SSAmodel.listOfReactions[Desc]
+
+        # Add the 3rd order hill term
+        arg['repsum'] = (arg['repsum'][0] + 
+                         '*'.join(['(' + arg['repsum'][1:] + ')']*P))
+
+        vmax_expr = (str(self.param[self.pdict[arg['vmax']]]) + '*' +
+                     str(self.vol) + '**' + str(P+1))
+        km0_expr = (str(self.param[self.pdict[arg['km0']]]) + '*' +
+                     str(self.vol) + '**' + str(P))
+
+        self.param_array[self.pdict[arg['vmax']]].expression = vmax_expr
+        self.param_array[self.pdict[arg['km0']]].expression = km0_expr
+
+        propfcn = (arg['vmax'] + arg['rctmult'] + arg['actmult'] + '/('
+                   + arg['km0'] + arg['rctsum'] + arg['actsum'] +
+                   arg['repsum'] + ')')
+
+        rxn.propensity_function = propfcn
+
+
     #MichaelisMenten Nonlinear
-    def SSA_MM(self,Desc,vmax,km=None,Rct=None,Prod=None,Act=None,Rep=None,mf=None):
-        """general michaelis-menten term that includes re-scaling for a population model"""
+    def SSA_MM(self, Desc, vmax, km=None, Rct=None, Prod=None, Act=None,
+               Rep=None, mf=None):
+        """ general michaelis-menten term that includes re-scaling for a
+        population model """
         
         #counts components
         try: rctcount = len(Rct)
@@ -239,41 +289,51 @@ class SSA_builder(object):
         try: repcount = len(Rep)       
         except: repcount = 0
         
-        #Adds Reactants
+        # Adds Reactants
         rcts = {}
         if Rct is not None:
             rcts.update({self.species_array[self.ydict[Rct[0]]]:1})
         
-        #Adds Products
+        # Adds Products
         prods = {}
         for i in range(prodcount):
             prods.update({self.species_array[self.ydict[Prod[i]]]:1})
         
-        #redefine vmax -- need some way to determine if it has been updated or not
-        if str(self.pvaldict[vmax]) == self.SSAmodel.listOfParameters[vmax].expression:
-            self.SSAmodel.setParameter(vmax,self.SSAmodel.listOfParameters[vmax].expression+'*('+str(self.vol)+'**2)/('
-                                    +str(self.vol)+'**('+str(actcount+(Rct is not None))+'))')
+        # redefine vmax -- need some way to determine if it has been
+        # updated or not
+        if (str(self.pvaldict[vmax]) ==
+            self.SSAmodel.listOfParameters[vmax].expression):
+
+            self.SSAmodel.setParameter(
+                vmax, self.SSAmodel.listOfParameters[vmax].expression +
+                '*(' + str(self.vol) + '**2)/(' + str(self.vol) + '**('
+                + str(actcount + (Rct is not None)) + '))')
         
         if len(km)==1:
+            # redefine k -- need some way to determine if it has been
+            # updated or not
+            if (str(self.pvaldict[km[0]]) ==
+                self.SSAmodel.listOfParameters[km[0]].expression):
+
+                self.SSAmodel.setParameter(
+                    km[0],
+                    self.SSAmodel.listOfParameters[km[0]].expression +
+                    '*(' + str(self.vol) + ')')
             
-            #redefine k -- need some way to determine if it has been updated or not
-            if str(self.pvaldict[km[0]]) == self.SSAmodel.listOfParameters[km[0]].expression:
-                self.SSAmodel.setParameter(km[0],self.SSAmodel.listOfParameters[km[0]].expression+'*('+str(self.vol)+')')
-            
-            #propensity funtion setup
+            # propensity funtion setup
             rctmult=''
             rctsum =''
             for i in range(Rct is not None):
-                rctmult = rctmult+'*'+Rct[i]
+                rctmult = rctmult + '*' + Rct[i]
 
             for i in range(rctcount):
-                rctsum  = rctsum +'+'+Rct[i]
+                rctsum  = rctsum  + '+' + Rct[i]
                 
             actmult = ''
             actsum = ''
             for i in range(actcount):
-                actsum  = actsum +'+'+Act[i]
-                actmult = actmult+'*'+Act[i]
+                actsum  = actsum  + '+' + Act[i]
+                actmult = actmult + '*' + Act[i]
             
             repmult = ''
             repsum = ''
@@ -281,25 +341,36 @@ class SSA_builder(object):
                 repsum  = repsum +'+'+Rep[i]
                 repmult = repmult+'*'+Rep[i]
             
-            #creates the propensity function
-            propfcn = vmax+rctmult+actmult+'/('+km[0]+rctsum+actsum+repsum+')'
+            # creates the propensity function
+            propfcn = (vmax + rctmult + actmult + '/(' + km[0] + rctsum
+                       + actsum + repsum + ')')
+            propfcn_args = {
+                'vmax'    : vmax,
+                'rctmult' : rctmult,
+                'actmult' : actmult,
+                'km0'     : km[0],
+                'rctsum'  : rctsum,
+                'actsum'  : actsum,
+                'repsum'  : repsum,
+            }
             
-            #delete this: meanfield approximation only
+            # delete this: meanfield approximation only
             if mf is not None:
                 xlen,ylen = mf
                 cellcount = xlen*ylen
-                propfcn = vmax+rctmult+actmult+'/('+km[0]+rctsum+actsum+repsum+')'+'/'+str(cellcount)
+                propfcn = (vmax + rctmult + actmult + '/(' + km[0] +
+                           rctsum + actsum + repsum + ')' + '/' +
+                           str(cellcount))
                 
-            annt = 0 #no annotations necessary yet 
+            annt = 0 # no annotations necessary yet 
 
-            rxn = stk.Reaction(name=Desc,  
-                            reactants=rcts,
-                            products=prods,
-                            propensity_function=propfcn,
-                            annotation=annt)
+            rxn = stk.Reaction(name=Desc, reactants=rcts,
+                               products=prods,
+                               propensity_function=propfcn,
+                               annotation=annt)
         self.SSAmodel.addReaction(rxn)
         #print Desc+' added successfully.'
-        return
+        return propfcn_args
 
         if len(km) is not 1:
             print 'I haven\'t made this one yet...'

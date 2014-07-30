@@ -19,7 +19,7 @@ class pBase(object):
     and the casadi suite for general integrations.
     """
         
-    def __init__(self, model, paramset, y0=None):
+    def __init__(self, model, paramset, y0=None, period_guess=24.):
         """
         Sets up pBase with the required information
 
@@ -83,7 +83,7 @@ class pBase(object):
         # No initial conditions provided, bvp solution initiated
         if y0 is None:
             self.y0 = 5*np.ones(self.NEQ+1)
-            self.calcY0(600)
+            self.calcY0(25*period_guess)
         else: self.y0 = y0
 
     # Shortcut methods
@@ -251,7 +251,7 @@ class pBase(object):
 
         self.pClassSetup()
         self.pClass.setFINDY0TOL(tol)
-        out = self.pClass.findy0(tout)
+        out = self.pClass.findy0(int(tout))
         if out > 0:
            if out is 1: raise RuntimeError("findy0 failed: setup")
            if out is 2: raise RuntimeError("findy0 failed: CVode Error")
@@ -470,7 +470,7 @@ class pBase(object):
         try: del self.pClass
         except AttributeError: pass
         self.intPastTrans(trans)
-        self.approxY0(trans)
+        self.approxY0(trans/3.)
         self.solveBVP()
         self.roots()
 

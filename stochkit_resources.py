@@ -40,6 +40,7 @@ import copy
 from collections import OrderedDict
 import pdb
 import Bioluminescence as bl
+import sys
 
 import math
 import numpy as np
@@ -80,7 +81,7 @@ except:
     
 """
 
-algorithmlocation = r"$HOME/Packages/StochKit2.0.10/ssa"
+algorithmlocation = "$HOME/Packages/StochKit2.0.10/ssa"
 
 
 class Model(object):
@@ -216,7 +217,7 @@ class Model(object):
             raise
 
     def getReaction(self, rname):
-        return reactions[rname]
+        return self.listOfreactions[rname]
 
     def getAllReactions(self):
         return self.listOfReactions
@@ -876,7 +877,7 @@ def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed
 
     # Write a temporary StochKit2 input file.
     if isinstance(model,StochKitModel):
-        outfile =  "stochkit_temp_input.xml"
+        outfile =  "stochkit_temp_input_" + str(job_id) + ".xml"
         mfhandle = open(outfile,'w')
         document = StochMLDocument.fromModel(model)
 
@@ -891,7 +892,8 @@ def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed
 
     # Assemble argument list
     ensemblename = job_id
-    # If the temporary folder we need to create to hold the output data already exists, we error
+    # If the temporary folder we need to create to hold the output data
+    # already exists, we error
     process = os.popen('ls '+prefix_outdir)
     directories = process.read();
     process.close()
@@ -952,7 +954,8 @@ def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed
 
     for filename in files:
         if 'trajectory' in filename:
-            trajectories.append(numpy.loadtxt(outdir + '/trajectories/' + filename))
+            trajectories.append(numpy.loadtxt(outdir + '/trajectories/'
+                                              + filename))
         else:
             sys.stderr.write('Couldn\'t identify file (' + filename + ') found in output folder')
             sys.exit(-1)
@@ -1144,7 +1147,8 @@ class StochPopEval(object):
         pl.ylabel('State Variable')
         pl.legend()
 
-    def PlotPopPartial(self,SV,tstart=0,tend=None,fignum=1,color='black',conc=False,traces=True):
+    def PlotPopPartial(self, SV, tstart=0, tend=None, fignum=1,
+                       color='black', conc=False, traces=True):
         #Plot for partial time set
         
         if tend == None:

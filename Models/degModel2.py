@@ -8,13 +8,13 @@ y0in = np.array([1.33593236, 1.79197778, 1.62225403, 1.62164561,
                  5.17596319, 3.96326956, 0.37392169, 0.1865519,
                  23.69999994])
 
-paramset= np.array([1.94599211e-01 , 1.30641511e-01 , 1.13505694e-01 ,
-                    4.25460804e-01 , 2.59493541e-01 , 3.26290677e-01 ,
-                    6.76063523e-01 , 6.07937881e-01 , 1.14786910e-02 ,
-                    1.14911580e+00 , 2.96993795e+00 , 3.38240851e-02 ,
-                    1.52309394e+00 , 1.68558083e+00 , 2.01721235e+00 ,
-                    1.01201779e-01 , 3.31792942e+00 , 5.26256372e-02 ,
-                    4.06306642e-02 , 1.75478279e-03 , 3.00000000e+00])
+paramset= np.array([  1.94599211e-01,   1.30641511e-01,   1.13505694e-01,
+                      4.25460804e-01,   2.59493541e-01,   3.26290677e-01,
+                      6.76063523e-01,   6.07937881e-01,   1.14786910e-02,
+                      1.14911580e+00,   2.96993795e+00,   3.38240851e-02,
+                      1.52309394e+00,   1.68558083e+00,   2.01721235e+00,
+                      1.01201779e-01,   3.35780360e-01,   5.26256372e-02,
+                      4.06306642e-02,   1.75478279e-03,   3.00000000e+00])
 
 
 def model():
@@ -49,8 +49,8 @@ def model():
     vdP    = cs.ssym("vdP")
     vdC1   = cs.ssym("vdC1")
     vdC2   = cs.ssym("vdC2")
-    vdCn   = cs.ssym("vdCn")
-    MC2n   = cs.ssym("MC2n")
+    vdC1n   = cs.ssym("vdC1n")
+    vdC2n   = cs.ssym("vdC2n")
     kdP    = cs.ssym("kdP")
     kdC1   = cs.ssym("kdC1")
     kdCn   = cs.ssym("kdCn")
@@ -61,7 +61,7 @@ def model():
 
     param = cs.vertcat([vtp  , vtc1 , vtc2  , knp   , knc1   , vdp  ,
                         vdc1 , vdc2  , kdp  , kdc1 , vdP   , kdP   ,
-                        vdC1   , vdC2 , kdC1 , vdCn , MC2n , kdCn ,
+                        vdC1   , vdC2 , kdC1 , vdC1n , vdC2n , kdCn ,
                         vaC1P , vdC1P , ktxnp])
     
     # Model Equations
@@ -95,8 +95,8 @@ def model():
     ode[5] = txl(c2,1)    + MMdeg(C2,vdC2,kdC1) + cx(P,C2,C2P,vaC1P,vdC1P)
 
     # PER/CRY Cytoplasm Complexes
-    ode[6] = -cx(P,C1,C1P,vaC1P,vdC1P) + cxMMdeg(C1P,C2P,vdCn,kdCn)
-    ode[7] = -cx(P,C2,C2P,vaC1P,vdC1P) + cxMMdeg(C2P,C1P,vdCn*MC2n,kdCn)
+    ode[6] = -cx(P,C1,C1P,vaC1P,vdC1P) + cxMMdeg(C1P,C2P,vdC1n,kdCn)
+    ode[7] = -cx(P,C2,C2P,vaC1P,vdC1P) + cxMMdeg(C2P,C1P,vdC2n,kdCn)
 
     ode = cs.vertcat(ode)
 

@@ -23,7 +23,7 @@ class SingleModel(object):
 
         # Add parameters for sinusoidal model
         params.add('amplitude', value=master.p0['amplitude'], min=0)
-        params.add('period', value=master.p0['period'])
+        params.add('period', value=master.p0['period'], min=0)
         params.add('phase', value=master.p0['phase']%(2*np.pi), min=0,
                    max=2*np.pi)
         params.add('decay', value=master.p0['decay'])
@@ -144,7 +144,8 @@ class DecayingSinusoid(object):
         return np.exp(-0.5*del_ics)/(np.exp(-0.5*del_ics).sum())
 
     def _calculate_averaged_parameters(self):
-        self.model_weights = model_weights = self._calculate_model_weights()
+        self.model_weights = model_weights = \
+                self._calculate_model_weights()
 
         param_keys = [model.params.keys() for model in self.models]
 
