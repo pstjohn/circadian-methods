@@ -72,7 +72,7 @@ def simulate_stoch(base, vol, t=None, traj=100, increment=0.01,
                                 number_of_trajectories=traj,
                                 increment=increment)
 
-    ts = base._t_to_phi(trajectories[0][:,0])
+    ts = trajectories[0][:,0]
     traj = np.array(trajectories)[:,:,1:]/vol
     return ts, traj
 
