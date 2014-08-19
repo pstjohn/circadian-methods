@@ -81,7 +81,7 @@ class Amplitude(pBase):
         phi_guess = phi_vals[np.array([resy(phi) for phi in
                                        phi_vals]).argmin()]
         p_min = opt.fmin(resy, phi_guess, disp=0)[0]%(2*np.pi)
-        assert resy(p_min)/(5*self.NEQ) < 1E-3, "transient not converged"
+        assert resy(p_min)/self.avg.sum() < 1E-3, "transient not converged"
 
 
         phi_diff = normalize(p_min - phi_end)
@@ -356,6 +356,20 @@ class Amplitude(pBase):
         return pt.average(ts, self.lc_phi(self.phis), self.phis).T
 
 
+    def _cos_components(self):
+        """ return the phases and amplitudes associated with the first
+        order fourier compenent of the limit cycle (i.e., the best-fit
+        sinusoid which fits the limit cycle) """
+    
+        dft_sol = np.fft.fft(self.sol[:-1], axis=0)
+        n = len(self.ts[:-1])
+        baseline = dft_sol[0]/n
+        comp = 2./n*dft_sol[1]
+        return np.abs(comp), np.angle(comp), baseline
+
+
+
+
         
 class phase_distribution(object):        
     def __init__(self, fo_phi, phase_diffusivity,
@@ -517,6 +531,10 @@ class gaussian_phase_distribution(phase_distribution):
                  invert_res=60):
         """ mu and sigma should be the mean and standard deviation of
         the trajectory. """
+
+        assert np.isfinite(mu), "Mu must be a number"
+        assert np.isfinite(sigma), "Sigma must be a number"
+        assert np.isfinite(phase_diffusivity), "D must be a number"
         
         # General phase distribution variables
         self.phase_diffusivity = phase_diffusivity
@@ -548,12 +566,16 @@ class gaussian_phase_distribution(phase_distribution):
 
         # For every time point, find distribution
         for i, t in enumerate(ts): ##Parallelize?
-            sigma_d = np.sqrt(2*self.phase_diffusivity*t) if t > 0 else 0.
+            sigma_d = np.sqrt(2*self.phase_diffusivity*np.abs(t))
             mu_d = (t * (2*np.pi)/self.period)%(2*np.pi)
 
             # From the convolution of two gaussian functions
             mu_f = self.mu + mu_d if advance_t else self.mu,
-            sigma_f = np.sqrt(self.sigma**2 + sigma_d**2)
+
+            # Allow negative times to reverse diffusion
+            var = self.sigma**2 + np.sign(t)*sigma_d**2
+            sigma_f = np.sqrt(var) if var > 0 else 0.
+
             ret_phis[i] = wrapped_gaussian(phis, mu_f, sigma_f)
 
         return ret_phis

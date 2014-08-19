@@ -116,6 +116,28 @@ class SSA_builder(object):
     #REACTION TYPES =============================
     
     #Mass-Action
+    def SSA_MA(self, name='', reactants={}, products={}, rate=''):
+        """ Deal with mass-action rates where volume affects the
+        stochastic propensity """
+        
+        # Scale rate by appropriate volume power
+        degree = sum(reactants.values())
+        if str(self.pvaldict[rate.name]) == rate.expression:
+                self.SSAmodel.setParameter(
+                    rate.name,
+                    (rate.expression +
+                    '/pow(' + str(self.vol) + ', ' + str(degree - 1) + ')')
+                )
+
+        rxn = stk.Reaction(name=name,
+                            reactants=reactants,
+                            products=products,
+                            massaction=True,
+                            rate=rate)
+
+        self.SSAmodel.addReaction(rxn)
+
+
     def SSA_MA_tln(self,Desc,P,k,mRNA):
         rxn=stk.Reaction(name=Desc,
                             products={self.species_array[self.ydict[P]]:1},
@@ -486,6 +508,24 @@ class SSA_builder(object):
         self.SSAmodel.addReaction(rxn)
         return
 
+    @staticmethod
+    def expand_labelarray(labels, nrep):
+        """ Function to add indicies to the labels and return a
+        flattened matrix such that uncoupled cells from a large
+        population can be tracked in a single stochss model """
+
+        # Some string array magic
+        nlab = len(labels)
+        labels = np.tile(np.asarray(labels), (nrep, 1))
+        indicies = np.tile(np.arange(nrep).astype(str), (nlab, 1)).T
+        score = np.tile(np.array('_'), (nrep, nlab))
+
+        # Build labels (dont know why element-wise addition is so
+        # convoluted)
+        # L + _ + i
+        out = np.core.defchararray.add(labels, score)
+        out = np.core.defchararray.add(out, indicies)
+        return out.flatten(order='C')
 
 
 

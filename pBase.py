@@ -58,7 +58,7 @@ class pBase(object):
         for par,ind in zip(self.ylabels,range(0,self.NEQ)):
             self.ydict[par] = ind
         
-        self.paramset = paramset
+        self.paramset = np.asarray_chkfinite(paramset)
 
         self.intoptions = {
             'y0tol'            : 1E-3,
@@ -84,7 +84,7 @@ class pBase(object):
         if y0 is None:
             self.y0 = 5*np.ones(self.NEQ+1)
             self.calcY0(25*period_guess)
-        else: self.y0 = y0
+        else: self.y0 = np.asarray_chkfinite(y0)
 
     # Shortcut methods
     def _phi_to_t(self, phi): return phi*self.y0[-1]/(2*np.pi)

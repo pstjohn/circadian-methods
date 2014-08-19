@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     base_control = create_class()
 
-    vol = 1000
+    vol = 500
 
     # Estimate decay parameter from stochastic trajectories
     ts, traj = simulate_stoch(base_control, vol,
@@ -89,7 +89,8 @@ if __name__ == "__main__":
                               increment=base_control.y0[-1]/100)
     from CommonFiles.DecayingSinusoid import DecayingSinusoid
     trans = len(ts)/4
-    master = DecayingSinusoid(ts[trans:], traj.mean(0)[trans:,1],
+    master = DecayingSinusoid(base_control._t_to_phi(ts[trans:]),
+                              traj.mean(0)[trans:,1],
                               max_degree=1).run()
     phase_diff = -master.averaged_params['decay'].value
 
@@ -102,7 +103,7 @@ if __name__ == "__main__":
     population = gaussian_phase_distribution(0, 0, phase_diff)
     amp.phase_distribution = population
     amp._init_amp_class()
-    x_bar = amp.x_bar(ts)
+    x_bar = amp.x_bar(amp._t_to_phi(ts))
 
 
     # Plot deterministic and stochastic trajectories
@@ -111,9 +112,9 @@ if __name__ == "__main__":
     PlotOptions(uselatex=True)
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    lines_det = ax.plot(ts, x_bar[:,0])
+    lines_det = ax.plot(amp._t_to_phi(ts), x_bar[:,0])
     ax.set_color_cycle(None)
-    lines_sto = ax.plot(ts, traj.mean(0)[:,0], '--')
+    lines_sto = ax.plot(amp._t_to_phi(ts), traj.mean(0)[:,0], '--')
     ax.legend([lines_det[0], lines_sto[0]],
               ['Deterministic', 'Stochastic'])
 

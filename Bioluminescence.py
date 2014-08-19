@@ -117,7 +117,6 @@ class Bioluminescence(object):
         SStot = ((y_dat - y_dat.mean())**2).sum()
         return 1 - SSres/SStot
 
-
     def amplify_decay(self, amp=None, decay=None):
         """ Function to amplify the tail end of a trace by removing the
         estimated exponential decay. Amplitude and decay parameters, if
@@ -126,7 +125,8 @@ class Bioluminescence(object):
         if decay is None: decay = self.sinusoid_pars['decay']
         if amp is None: amp = self.sinusoid_pars['amplitude']
 
-        exp_traj = amp*np.exp(decay * self.x)
+        # Decay in units of radians
+        exp_traj = amp*np.exp(-decay * 2*np.pi*self.x/self.period)
         
         # Normalize by first value
         # exp_traj *= 1./exp_traj[0]
@@ -291,7 +291,7 @@ class Bioluminescence(object):
         envelope = self.hilbert_envelope()[start:end]
         amplitude, decay = fit_exponential(self.x[start:end], envelope)
 
-        return amplitude, decay
+        return amplitude, -decay*self.period/(2*np.pi) # (1/rad)
 
 
 
@@ -486,7 +486,7 @@ def estimate_sinusoid_pars(x, y):
         'period'    : period,
         'phase'     : phase,
         'amplitude' : amplitude,
-        'decay'     : decay,
+        'decay'     : -decay*period/(2*np.pi) # (1/rad)
     }
 
     return pars
@@ -496,7 +496,7 @@ def decaying_sinusoid(x, amplitude, period, phase, decay):
     """ Function to generate the y values for a fitted decaying sinusoid
     specified by the dictionary 'pars' """
     return (amplitude * np.cos((2*np.pi/period)*x + phase) *
-            np.exp(decay*x))
+            np.exp(2*np.pi*decay*x/period))
 
 def _pars_to_plist(pars):
     pars_list = ['amplitude', 'period', 'phase', 'decay']

@@ -198,3 +198,47 @@ def color_range(NUM_COLORS, cm=None):
     if cm is None: cm = matplotlib.cm.get_cmap('gist_rainbow')
     return (cm(1.*i/NUM_COLORS) for i in range(NUM_COLORS))
 
+from fractions import Fraction
+
+
+
+def create_pi_labels(ax, a=0, b=2, step=0.5, direction='x'):
+    """
+    A function that gives back ticks an labels in radians
+    
+    Keyword arguments:
+    a -- lower limit is a*pi (default 0.0)
+    b -- upper limit is b*pi (default 2.0)
+    step -- step is step*pi  (default 0.5)
+    ax -- if ax is not None then ticks and labels are set for this axes
+    (default None)
+    direction -- 'x' or 'y' or 'z' (default 'x') which axis you want to
+    label
+    
+    return value is ticks, labels 
+    """
+    values = np.arange(a, b+0.1*step, step, dtype=int)
+    ticks = values*np.pi
+
+    labels = []
+    for val in values.astype(str):
+        if val == '-1': labels += [r'$-\pi$']
+        elif val == '0': labels += [r'$0$']
+        elif val == '1': labels += [r'$\pi$']
+        else: labels += [r'$' + val + r'\pi$'] 
+                
+    if ax is not None:
+        if direction == 'x':
+            ax.set_xticks(ticks)
+            ax.set_xticklabels(labels)
+        elif direction == 'y':
+            ax.set_yticks(ticks)
+            ax.set_yticklabels(labels)
+        elif direction == 'z':
+            ax.set_zticks(ticks)
+            ax.set_zticklabels(labels)
+        else:
+            print("direction ", direction, "is not a proper argument")
+
+    return ticks, labels
+

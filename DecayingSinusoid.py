@@ -78,7 +78,7 @@ def sinusoid_component(params, x):
     decay = params['decay'].value
 
     return (amplitude * np.cos((2*np.pi/period)*x + phase) *
-            np.exp(decay*x))
+            np.exp(-2*np.pi*decay*x/period))
 
 def baseline_component(params, x):
     bl_pars = [params[key].value for key in params.keys() if
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     #               3.272, np.nan])
 
     import pandas as pd
-    data = pd.read_pickle('../Hogenesch_data/genome_scale.p')
+    data = pd.read_pickle('../decay/Hogenesch_data/genome_scale.p')
     ts = np.arange(0, 74, 2)
     x = np.array(ts, dtype=float)
     trange = [str(t) for t in ts] 
