@@ -886,14 +886,15 @@ class pBase(object):
         now will use seed method. """
 
         # Allocate symbolic vectors for the model
-        dphidt = cs.ssym('dphidt', numstates)
+        dphidx = cs.ssym('dphidx', numstates)
         t      = self.model.inputSX(cs.DAE_T)    # time
         xd     = self.model.inputSX(cs.DAE_X)    # differential state
         s      = cs.ssym("s", self.NEQ, numstates) # sensitivities
-        p      = cs.vertcat([self.model.inputSX(2), dphidt]) # parameters
+        p      = cs.vertcat([self.model.inputSX(2), dphidx]) # parameters
 
         # Symbolic function (from input model)
         ode_rhs = self.model.outputSX()
+        f_tilde = self.y0[-1]*ode_rhs/(2*np.pi)
 
         # symbolic jacobians
         jac_x = self.model.jac(cs.DAE_X, cs.DAE_X)   
@@ -901,7 +902,7 @@ class pBase(object):
 
         quad = cs.ssym('q', self.NEQ, numstates)
         for i in xrange(numstates):
-            quad[:,i] = 2*(s[:,i] - dphidt*ode_rhs)*(xd - self.avg)
+            quad[:,i] = 2*(s[:,i] - dphidx[i]*f_tilde)*(xd - self.avg)
 
         shape = (self.NEQ*numstates, 1)
 
@@ -1014,6 +1015,7 @@ class pBase(object):
             self.sarc_int.setInput(param, cs.INTEGRATOR_P)
             self.sarc_int.evaluate()
             out = self.sarc_int.output(cs.INTEGRATOR_QF).toArray()
+            # amp_change += [out]
             amp_change += [out*2*np.pi/self.y0[-1]]
                                         
 
