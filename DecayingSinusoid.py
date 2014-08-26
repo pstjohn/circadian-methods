@@ -234,28 +234,28 @@ def _pop_nans(x, y):
 if __name__ == "__main__":
     import sys
 
-    # x = np.arange(0, 74, 2)
-    # y = np.array([ -93.376, -128.174, -115.173,  -46.591,   35.161,
-    #               92.173,  133.255,  141.447,  133.079,   68.621,
-    #               11.983,  -32.145,  -57.393,  -68.721,  -60.759,
-    #               -44.467,   -9.305,   21.757,   49.879,   64.551,
-    #               52.803,   33.005,    2.747,  -16.561,  -37.12 ,
-    #               -48.248,  -48.866,  -44.504,  -28.652,  -15.72 ,
-    #               -2.928,   11.604,   16.506,   16.048,   10.81 ,
-    #               3.272, np.nan])
+    x = np.arange(0, 74, 2)
+    y = np.array([ -93.376, -128.174, -115.173,  -46.591,   35.161,
+                  92.173,  133.255,  141.447,  133.079,   68.621,
+                  11.983,  -32.145,  -57.393,  -68.721,  -60.759,
+                  -44.467,   -9.305,   21.757,   49.879,   64.551,
+                  52.803,   33.005,    2.747,  -16.561,  -37.12 ,
+                  -48.248,  -48.866,  -44.504,  -28.652,  -15.72 ,
+                  -2.928,   11.604,   16.506,   16.048,   10.81 ,
+                  3.272, np.nan])
 
-    import pandas as pd
-    data = pd.read_pickle('../decay/Hogenesch_data/genome_scale.p')
-    ts = np.arange(0, 74, 2)
-    x = np.array(ts, dtype=float)
-    trange = [str(t) for t in ts] 
+    # import pandas as pd
+    # data = pd.read_pickle('../decay/Hogenesch_data/genome_scale.p')
+    # ts = np.arange(0, 74, 2)
+    # # x = np.array(ts, dtype=float)
+    # trange = [str(t) for t in ts] 
 
-    try: index = int(sys.argv[1])
-    except (IndexError, ValueError): index = 0
+    # try: index = int(sys.argv[1])
+    # except (IndexError, ValueError): index = 0
 
-    row = data.iloc[index]
+    # row = data.iloc[index]
 
-    y = np.array(row[trange].values, dtype=float)
+    # y = np.array(row[trange].values, dtype=float)
 
     master = DecayingSinusoid(x[3:], y[3:], max_degree=4).run()
     master.report()
