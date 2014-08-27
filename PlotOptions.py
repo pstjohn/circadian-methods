@@ -106,6 +106,7 @@ class HistRCToggle:
 
 blue = '#9999ff'
 red = '#ff9999'
+green = '#99D699'
 
 def histogram(ax, data1=None, data2=None, color1=blue, color2=red,
               bins=20, range=None, alpha=1., label1=None, label2=None):

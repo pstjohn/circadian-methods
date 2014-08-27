@@ -29,7 +29,6 @@ class SingleModel(object):
         params.add('decay', value=master.p0['decay'])
 
         # Add parameters for baseline model (polynomial deg=nb)
-        # b_estimate = np.polyfit(self.x, self.y, self.nb)[::-1]
         b_estimate = np.polyfit(self.x, master.bio.yvals['mean'],
                                 self.nb)[::-1]
         for i, par in enumerate(b_estimate):
@@ -77,8 +76,16 @@ def sinusoid_component(params, x):
     phase = params['phase'].value
     decay = params['decay'].value
 
+    # Allow for decays to be in both units of 1/hrs or 1/rad
+    if sinusoid_component.decay_units == '1/rad':
+        decay *= 2*np.pi/period
+
     return (amplitude * np.cos((2*np.pi/period)*x + phase) *
-            np.exp(-2*np.pi*decay*x/period))
+            np.exp(-decay*x))
+
+# Default decay units (same as Bioluminescence package)
+sinusoid_component.decay_units = '1/rad'
+
 
 def baseline_component(params, x):
     bl_pars = [params[key].value for key in params.keys() if
@@ -96,7 +103,8 @@ def minimize_function(params, x, y):
 
 class DecayingSinusoid(object):
     
-    def __init__(self, x, y, max_degree=6, outlier_sigma=4, ic='bic'):
+    def __init__(self, x, y, max_degree=6, outlier_sigma=4, ic='bic',
+                 decay_units='1/rad'):
         """ Calculate the lowest AICc model for the given x,y data.
         max_degree specifies the maximum degree of the baseline function
         """
@@ -113,7 +121,12 @@ class DecayingSinusoid(object):
             'bio_period_guess' : 24.,
             'bio_detrend_period' : 24.,
             'selection' : ic,
+            'decay_units' : decay_units,
         }
+
+        # Change default in sinusoid component function
+        sinusoid_component.decay_units = decay_units
+
 
     def run(self):
         self._estimate_parameters()
@@ -126,6 +139,12 @@ class DecayingSinusoid(object):
                       period_guess=self.opt['bio_period_guess'])
         self.bio.detrend(detrend_period=self.opt['bio_detrend_period'])
         self.p0 = self.bio.estimate_sinusoid_pars()
+
+        # Bioluminescence returns decay in units of 1/rad, change here
+        # to 1/hrs
+        if self.opt['decay_units'] != '1/rad':
+            self.p0['decay'] *= 2*np.pi/self.p0['period']
+        
 
     def _fit_models(self):
         self.models = []
@@ -256,6 +275,13 @@ if __name__ == "__main__":
     # row = data.iloc[index]
 
     # y = np.array(row[trange].values, dtype=float)
+
+    master = DecayingSinusoid(x[3:], y[3:], max_degree=4,
+                              decay_units='1/hrs').run()
+    master.report()
+    print "Expected Phase Decay: {0:0.3f}".format(
+        master.averaged_params['period'].value *
+        master.averaged_params['decay'].value / (2*np.pi))
 
     master = DecayingSinusoid(x[3:], y[3:], max_degree=4).run()
     master.report()
