@@ -104,9 +104,12 @@ def minimize_function(params, x, y):
 class DecayingSinusoid(object):
     
     def __init__(self, x, y, max_degree=6, outlier_sigma=4, ic='bic',
-                 decay_units='1/rad'):
+                 decay_units='1/rad', specific_degree=False):
         """ Calculate the lowest AICc model for the given x,y data.
         max_degree specifies the maximum degree of the baseline function
+
+        specific_degree=True specifies that only the one model
+        corresponding to max_degree should be calculated.
         """
         
         # Pop outlier data points
@@ -118,10 +121,11 @@ class DecayingSinusoid(object):
         self.max_degree = max_degree
 
         self.opt = {
-            'bio_period_guess' : 24.,
+            'bio_period_guess'   : 24.,
             'bio_detrend_period' : 24.,
-            'selection' : ic,
-            'decay_units' : decay_units,
+            'selection'          : ic,
+            'decay_units'        : decay_units,
+            'specific_degree'    : specific_degree,
         }
 
         # Change default in sinusoid component function
@@ -148,7 +152,8 @@ class DecayingSinusoid(object):
 
     def _fit_models(self):
         self.models = []
-        for i in xrange(self.max_degree+1):
+        start = self.max_degree if self.opt['specific_degree'] else 0
+        for i in xrange(start, self.max_degree+1):
             self.models += [SingleModel(self.x, self.y, i)]
             self.models[-1].create_parameters(self)
             self.models[-1].fit()
@@ -277,7 +282,8 @@ if __name__ == "__main__":
     # y = np.array(row[trange].values, dtype=float)
 
     master = DecayingSinusoid(x[3:], y[3:], max_degree=4,
-                              decay_units='1/hrs').run()
+                              decay_units='1/hrs',
+                              specific_degree=True).run()
     master.report()
     print "Expected Phase Decay: {0:0.3f}".format(
         master.averaged_params['period'].value *
