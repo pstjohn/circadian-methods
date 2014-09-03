@@ -35,16 +35,12 @@
     Minor Changes: J. Abel, April 2014
     
 """
-import time
-import copy
 from collections import OrderedDict
-import pdb
 import Bioluminescence as bl
 import sys
 
-import math
 import numpy as np
-import pylab as pl
+# import pylab as pl
 
 try:
     import lxml.etree as etree
@@ -56,7 +52,6 @@ except:
     no_pretty_print = True
 
 try:
-    import scipy.sparse as scisp
     import scipy.io as spio
     isSCIPY = True
 except:
@@ -1015,75 +1010,75 @@ class StochEval(object):
     def avgtraj(self):
         return self.avgtraj
     
-    def PlotAvg(self,SV,traces=True,fignum=1,color='black',conc=False):
-        
-        avg=self.avgtraj
-        pl.figure(fignum)
-        statevarnum = self.ydict[SV]
-        
-        if traces is True:
-            for i in range(self.trajcount):
-                trj=self.trajectories[i][:,statevarnum]
-                if conc==True:
-                    trj=self.trajectories[i][:,statevarnum]/self.vol
-                pl.plot(self.time,trj,color="gray",linewidth=0.5)
-        if conc==True:
-            avg[:,statevarnum]=avg[:,statevarnum]/self.vol
-        pl.plot(self.time,avg[:,statevarnum],color=color,linewidth=1.5,label = SV)
-        pl.title('State Variable Ocsillation')
-        pl.xlabel('Time, Circadian Hours')
-        pl.ylabel('State Variable')
-        pl.legend()
+    # def PlotAvg(self,SV,traces=True,fignum=1,color='black',conc=False):
+    #     
+    #     avg=self.avgtraj
+    #     pl.figure(fignum)
+    #     statevarnum = self.ydict[SV]
+    #     
+    #     if traces is True:
+    #         for i in range(self.trajcount):
+    #             trj=self.trajectories[i][:,statevarnum]
+    #             if conc==True:
+    #                 trj=self.trajectories[i][:,statevarnum]/self.vol
+    #             pl.plot(self.time,trj,color="gray",linewidth=0.5)
+    #     if conc==True:
+    #         avg[:,statevarnum]=avg[:,statevarnum]/self.vol
+    #     pl.plot(self.time,avg[:,statevarnum],color=color,linewidth=1.5,label = SV)
+    #     pl.title('State Variable Ocsillation')
+    #     pl.xlabel('Time, Circadian Hours')
+    #     pl.ylabel('State Variable')
+    #     pl.legend()
     
     def SSAperiod(self,SV='p'):
         #Uses a FFT method to quickly find the most likely period.
         statevarnum = self.ydict[SV]
         print bl.estimate_period(self.time,self.avgtraj[:,statevarnum])
     
-    def waveletplot(self,bl_obj,fignum=10,subplot=111):
-        """
-        Uses Bioluminescence module to make a wavelet plot
-        """
-        bl_obj.dwt_breakdown()
-        fig = pl.figure(fignum)
-        ax = fig.add_subplot(subplot)
-        bl_obj.plot_dwt_components(ax)
+    # def waveletplot(self,bl_obj,fignum=10,subplot=111):
+    #     """
+    #     Uses Bioluminescence module to make a wavelet plot
+    #     """
+    #     bl_obj.dwt_breakdown()
+    #     fig = pl.figure(fignum)
+    #     ax = fig.add_subplot(subplot)
+    #     bl_obj.plot_dwt_components(ax)
         
-    def lombscargle(self,SV='p',fignum=12):
-        pl.figure(fignum)
-        statevarnum = self.ydict[SV]
-        a0=bl.periodogram(self.time,self.avgtraj[:,statevarnum])[0]
-        a1=bl.periodogram(self.time,self.avgtraj[:,statevarnum])[1]
-        pl.plot(a0,a1)
-        pl.xlabel('Period')
+    # def lombscargle(self,SV='p',fignum=12):
+    #     pl.figure(fignum)
+    #     statevarnum = self.ydict[SV]
+    #     a0=bl.periodogram(self.time,self.avgtraj[:,statevarnum])[0]
+    #     a1=bl.periodogram(self.time,self.avgtraj[:,statevarnum])[1]
+    #     pl.plot(a0,a1)
+    #     pl.xlabel('Period')
     
-    def decay_fit(self,bl_obj,weights=None,fignum=14):
-        #Compares fit by decaying sinusoid model with the SSA results
-        #should not run this for stoch model, detrending not necessary. to detrend, you should 
-        # instead just subtract the mean from the deterministic model version...
-        bl_obj.detrend()
-        #print 'Note: detrending not fixed for model version yet'
-        bl_obj.fit_sinusoid()
-        
-        #Plots original with detrended model
-        fig = pl.figure(fignum)
-        ax = fig.add_subplot(111)
+    # def decay_fit(self,bl_obj,weights=None,fignum=14):
+    #     #Compares fit by decaying sinusoid model with the SSA results
+    #     #should not run this for stoch model, detrending not necessary. to detrend, you should 
+    #     # instead just subtract the mean from the deterministic model version...
+    #     bl_obj.detrend()
+    #     #print 'Note: detrending not fixed for model version yet'
+    #     bl_obj.fit_sinusoid()
+    #     
+    #     #Plots original with detrended model
+    #     fig = pl.figure(fignum)
+    #     ax = fig.add_subplot(111)
 
-        ax.plot(bl_obj.x, bl_obj.y)
-        ax.plot(bl_obj.x, bl_obj.yvals['model'], '--')
-        ax.plot(bl_obj.x, bl_obj.yvals['mean'],'r--')
+    #     ax.plot(bl_obj.x, bl_obj.y)
+    #     ax.plot(bl_obj.x, bl_obj.yvals['model'], '--')
+    #     ax.plot(bl_obj.x, bl_obj.yvals['mean'],'r--')
     
-    def cwt_plot(self,bl_obj,fignum=13):
-        """plots the continuous wavelet transform"""
-        bl_obj.continuous_wavelet_transform(edge_method='exp_sin')
-        fig = pl.figure()
-        ax = fig.add_subplot(111)
-        cme = ax.pcolormesh(bl_obj.cwt['x'], bl_obj.cwt['tau'], bl_obj.cwt['cwt_abs'])
-        ax.plot(bl_obj.cwt['x'], bl_obj.cwt['period'], 'k')
-        cme.set_rasterized(True)
-        ax.set_xlim([bl_obj.cwt['x'].min(), bl_obj.cwt['x'].max()])
-        ax.set_ylim([bl_obj.cwt['tau'].min(), bl_obj.cwt['tau'].max()])
-        fig.tight_layout(pad=0.05,h_pad = 0.6,w_pad = 0.6)
+    # def cwt_plot(self,bl_obj,fignum=13):
+    #     """plots the continuous wavelet transform"""
+    #     bl_obj.continuous_wavelet_transform(edge_method='exp_sin')
+    #     fig = pl.figure()
+    #     ax = fig.add_subplot(111)
+    #     cme = ax.pcolormesh(bl_obj.cwt['x'], bl_obj.cwt['tau'], bl_obj.cwt['cwt_abs'])
+    #     ax.plot(bl_obj.cwt['x'], bl_obj.cwt['period'], 'k')
+    #     cme.set_rasterized(True)
+    #     ax.set_xlim([bl_obj.cwt['x'].min(), bl_obj.cwt['x'].max()])
+    #     ax.set_ylim([bl_obj.cwt['tau'].min(), bl_obj.cwt['tau'].max()])
+    #     fig.tight_layout(pad=0.05,h_pad = 0.6,w_pad = 0.6)
 
 
 
