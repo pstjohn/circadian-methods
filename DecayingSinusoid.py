@@ -254,6 +254,30 @@ def _pop_nans(x, y):
     return x[~xnan & ~ynan], y[~xnan & ~ynan]
 
 
+class StochasticModelEstimator(object):
+
+    def __init__(self, x, ys, weights, **kwargs):
+        """ Convenience class to estimate the relevant oscillatory
+        parameters from a stochastic-simulated model. Fits a decaying
+        sinusoid to each state variable, (ys.shape == (len(x), NEQ)),
+        weighting the averaged output parameters by the amplitudes of
+        the original states in weights. Additional kwargs are passed to
+        the DecayingSinusoid instances """ 
+
+        assert len(x) == ys.shape[0], "Incorrect Input Dimensions, ys"
+        assert len(weights) == ys.shape[1], "Incorrect Dimensions, ws"
+        
+        masters = [DecayingSinusoid(x, y, max_degree=0, **kwargs).run()
+                   for y in ys.T]
+        self.masters = masters
+        param_keys = masters[0].averaged_params.keys()
+
+        self.params = {}
+        for param in param_keys:
+            vals = np.array([master.averaged_params[param].value for
+                             master in masters])
+            self.params[param] = np.average(vals, weights=weights)
+
 
 if __name__ == "__main__":
     import sys
