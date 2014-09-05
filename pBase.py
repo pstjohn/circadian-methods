@@ -1119,6 +1119,18 @@ class pBase(object):
         raise RuntimeError("Point failed to converge to limit cycle")
         
 
+    def _cos_components(self):
+        """ return the phases and amplitudes associated with the first
+        order fourier compenent of the limit cycle (i.e., the best-fit
+        sinusoid which fits the limit cycle) """
+    
+        dft_sol = np.fft.fft(self.sol[:-1], axis=0)
+        n = len(self.ts[:-1])
+        baseline = dft_sol[0]/n
+        comp = 2./n*dft_sol[1]
+        return np.abs(comp), np.angle(comp), baseline
+
+
 
 
 
