@@ -256,27 +256,56 @@ def _pop_nans(x, y):
 
 class StochasticModelEstimator(object):
 
-    def __init__(self, x, ys, weights, **kwargs):
+    def __init__(self, x, ys, base, **kwargs):
         """ Convenience class to estimate the relevant oscillatory
         parameters from a stochastic-simulated model. Fits a decaying
         sinusoid to each state variable, (ys.shape == (len(x), NEQ)),
-        weighting the averaged output parameters by the amplitudes of
-        the original states in weights. Additional kwargs are passed to
-        the DecayingSinusoid instances """ 
+        Additional kwargs are passed to the DecayingSinusoid instances
 
-        assert len(x) == ys.shape[0], "Incorrect Input Dimensions, ys"
-        assert len(weights) == ys.shape[1], "Incorrect Dimensions, ws"
+        Takes the expected amplitude for each state variable from the
+        cosine components (assuming the stochastic simulation has t=0
+        corresponding to the synchronized state). 
+        """ 
+
+        assert len(x) == ys.shape[0], "Incorrect Dimensions, x"
+        assert base.NEQ == ys.shape[1], "Incorrect Dimensions, y"
+
+        self.x = x
+        self.ys = ys
+        self._kwargs = kwargs
         
-        masters = [DecayingSinusoid(x, y, max_degree=0, **kwargs).run()
-                   for y in ys.T]
-        self.masters = masters
-        param_keys = masters[0].averaged_params.keys()
+        amp, phase, baseline = base._cos_components()
+        self._cos_dict = {
+            'amp'      : amp,
+            'phase'    : phase,
+            'baseline' : baseline,
+        }
+
+        self.masters = [self._run_single_state(i) for i in
+                        xrange(base.NEQ)]
+
+        param_keys = ['decay', 'period']
 
         self.params = {}
         for param in param_keys:
             vals = np.array([master.averaged_params[param].value for
-                             master in masters])
-            self.params[param] = np.average(vals, weights=weights)
+                             master in self.masters])
+            self.params[param] = np.average(vals)
+
+    def _run_single_state(self, i):
+
+        imaster = DecayingSinusoid(self.x, self.ys[:,i], max_degree=0,
+                                   **self._kwargs)
+        imaster._estimate_parameters()
+        imaster.models = [SingleModel(imaster.x, imaster.y, 1)]
+        imodel = imaster.models[0]
+        imodel.create_parameters(imaster)
+        imodel.params['amplitude'].value = self._cos_dict['amp'][i]
+        imodel.params['amplitude'].vary = False
+        imodel.fit()
+        imaster._fit_models()
+        imaster._calculate_averaged_parameters()
+        return imaster
 
 
 if __name__ == "__main__":

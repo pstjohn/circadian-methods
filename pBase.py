@@ -1124,6 +1124,8 @@ class pBase(object):
         order fourier compenent of the limit cycle (i.e., the best-fit
         sinusoid which fits the limit cycle) """
     
+        if not hasattr(self, 'sol'): self.limitCycle()
+        
         dft_sol = np.fft.fft(self.sol[:-1], axis=0)
         n = len(self.ts[:-1])
         baseline = dft_sol[0]/n
