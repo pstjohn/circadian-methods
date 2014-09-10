@@ -872,8 +872,7 @@ def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed
 
     # Write a temporary StochKit2 input file.
     if isinstance(model,StochKitModel):
-        outfile =  (prefix_outdir + "/stochkit_temp_input_" + str(job_id)
-                    + ".xml")
+        outfile =  "stochkit_temp_input_" + str(job_id) + ".xml"
         mfhandle = open(outfile,'w')
         document = StochMLDocument.fromModel(model)
 
