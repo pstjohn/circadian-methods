@@ -52,6 +52,9 @@ class StochDecayEstimator(object):
         self.result = minimize(self._minimize_function, xbar_param)
         self.decay = xbar_param['decay'].value
         self.x_bar = self._calc_x_bar(xbar_param)
+        ss_res = ((self.ys - self.x_bar)**2).sum()
+        ss_tot = ((self.ys - self.ys.mean(0))**2).sum()
+        self.r2 = 1 - ss_res/ss_tot
         
 
     def _run_single_state(self, i):

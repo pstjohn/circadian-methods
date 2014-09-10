@@ -179,6 +179,9 @@ class DecayingSinusoid(object):
                     ModelAveragedParameter(param, self.models,
                                            model_weights)
 
+        # Shortcut method for easier access
+        self.best_model = self.models[self.model_weights.argmax()]
+
     def _best_model_degree(self):
         return self.models[self.model_weights.argmax()].nb
 
