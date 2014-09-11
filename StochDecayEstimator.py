@@ -59,8 +59,12 @@ class StochDecayEstimator(object):
 
     def _run_single_state(self, i):
 
-        imaster = DecayingSinusoid(self.x, self.ys[:,i], max_degree=0,
-                                   outlier_sigma=10, **self._kwargs)
+        start_ind = np.abs(self.x - self.base.y0[-1]).argmin()
+
+        imaster = DecayingSinusoid(
+            self.x[start_ind:], self.ys[start_ind:,i], max_degree=0,
+            outlier_sigma=10, decay_units='1/hrs', **self._kwargs)
+
         imaster._estimate_parameters()
         imaster.models = [SingleModel(imaster.x, imaster.y, 1)]
         imodel = imaster.models[0]
@@ -96,20 +100,27 @@ class StochDecayEstimator(object):
 
 
 if __name__ == "__main__":
-    from CommonFiles.Models.Oregonator import create_class, simulate_stoch
+    from CommonFiles.Models.degModelFinal import create_class
+    from CommonFiles.Models.DegModelStoch import simulate_stoch
+    # from CommonFiles.Models.Oregonator import create_class, simulate_stoch
     base_control = create_class()
 
-    vol = 0.1
-    periods = 7
-    ntraj = 100
+    vol = 250
+    periods = 10
+    ntraj = 200
 
     ts_c, traj_control = simulate_stoch(base_control, vol,
                                         t=periods*base_control.y0[-1],
-                                        ntraj=ntraj,
+                                        traj=ntraj,
                                         increment=base_control.y0[-1]/100)
 
     Estimator = StochDecayEstimator(ts_c, traj_control.mean(0),
                                     base_control)
+
+
+    print "Amplitude Decay Estimate: {0:0.3f}".format(Estimator.decay)
+    print "DecayingSinusoid Estimate: {0:0.3f}".format(
+        Estimator.sinusoid_params['decay'])
 
 
     import matplotlib.pylab as plt
