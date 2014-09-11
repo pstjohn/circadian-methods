@@ -84,7 +84,7 @@ def sinusoid_component(params, x):
             np.exp(-decay*x))
 
 # Default decay units (same as Bioluminescence package)
-sinusoid_component.decay_units = '1/rad'
+sinusoid_component.decay_units = '1/hrs'
 
 
 def baseline_component(params, x):
@@ -104,7 +104,7 @@ def minimize_function(params, x, y):
 class DecayingSinusoid(object):
     
     def __init__(self, x, y, max_degree=6, outlier_sigma=4, ic='bic',
-                 decay_units='1/rad', specific_degree=False):
+                 decay_units='1/hrs', specific_degree=False):
         """ Calculate the lowest AICc model for the given x,y data.
         max_degree specifies the maximum degree of the baseline function
 
