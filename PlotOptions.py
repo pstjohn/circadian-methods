@@ -125,7 +125,7 @@ def histogram(ax, data1=None, data2=None, color1=blue, color2=red,
     ax.yaxis.set_ticks_position('left')
     ax.spines['left'].set_position(('axes', -0.05))
     if range:
-        ax.set_xlim([range[0]*(1-1E-3), range[1]*(1+1E-3)])
+        ax.set_xlim(range)
     ax.xaxis.grid(False)
     ax.yaxis.grid(False)
 
