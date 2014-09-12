@@ -90,9 +90,9 @@ if __name__ == "__main__":
     from CommonFiles.DecayingSinusoid import DecayingSinusoid
     trans = len(ts)/4
     master = DecayingSinusoid(base_control._t_to_phi(ts[trans:]),
-                              traj.mean(0)[trans:,1],
-                              max_degree=1).run()
-    phase_diff = -master.averaged_params['decay'].value
+                              traj.mean(0)[trans:,1], max_degree=0,
+                              decay_units='1/rad').run()
+    phase_diff = master.averaged_params['decay'].value
 
 
     # Create amplitude model to capture diffusive effect
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     fig = plt.figure()
     ax = fig.add_subplot(111)
     lines_det = ax.plot(amp._t_to_phi(ts), x_bar[:,0])
-    ax.set_color_cycle(None)
+    # ax.set_color_cycle(None)
     lines_sto = ax.plot(amp._t_to_phi(ts), traj.mean(0)[:,0], '--')
     ax.legend([lines_det[0], lines_sto[0]],
               ['Deterministic', 'Stochastic'])

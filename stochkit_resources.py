@@ -40,6 +40,8 @@ import Bioluminescence as bl
 import sys
 
 import numpy as np
+import string
+import random
 # import pylab as pl
 
 try:
@@ -854,7 +856,7 @@ class StochKitOutputCollection():
         self.collection.append(ensemble)
 
 
-def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed=None,
+def stochkit(model, job_id=None, t=20,number_of_trajectories=10,increment=0.01,seed=None,
              algorithm=algorithmlocation):
     """ Call out and run StochKit. Collect the results. This routine is mainly
         intended to be used by the (command line) test suite. 
@@ -862,8 +864,15 @@ def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed
         JHA Edit 4-2014 to remove writing the model into the output folder
         
     """
+    # Make sure job id is unique
+    if job_id == None: job_id = ''
+
+    tag = ''.join(random.choice(string.ascii_uppercase) for i in
+                  range(12))
+    job_id += '_' + tag
+
     # We write all StochKit input and output files to a temporary folder
-    prefix_outdir = os.getcwd()+'/stochkit_output'
+    prefix_outdir = os.getenv("HOME")+'/tmp/stochkit_output'
 
     # If the base output directory does not exist, we create it
     process = os.popen('mkdir -p ' + prefix_outdir);
@@ -872,7 +881,8 @@ def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed
 
     # Write a temporary StochKit2 input file.
     if isinstance(model,StochKitModel):
-        outfile =  "stochkit_temp_input_" + str(job_id) + ".xml"
+        outfile =  (prefix_outdir + "/stochkit_temp_input_" + str(job_id)
+                    + ".xml")
         mfhandle = open(outfile,'w')
         document = StochMLDocument.fromModel(model)
 
@@ -887,11 +897,6 @@ def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed
 
     # Assemble argument list
     ensemblename = job_id
-    # If the temporary folder we need to create to hold the output data
-    # already exists, we error
-    process = os.popen('ls '+prefix_outdir)
-    directories = process.read();
-    process.close()
     
     outdir = prefix_outdir+'/'+ensemblename
         
@@ -916,9 +921,6 @@ def stochkit(model, job_id="",t=20,number_of_trajectories=10,increment=0.01,seed
     args+=' -i ' + num_output_points
     args+=' --realizations '
     args+=str(realizations)
-    if ensemblename in directories:
-        print 'Ensemble already existed, using --force.'
-        args+=' --force'
     
     # Only use on processor per StochKit job. 
     args+= ' -p 1'
