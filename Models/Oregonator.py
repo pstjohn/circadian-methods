@@ -135,7 +135,7 @@ def simulate_stoch(base, vol, t=None, ntraj=1, increment=0.01,
                    job_id='', y0_pop=None, nrep=1):
 
     stoch_fn = SSAModel(base, vol, nrep=nrep, y0_pop=y0_pop)
-    trajectories = stk.stochkit(stoch_fn, job_id='brusselator' +
+    trajectories = stk.stochkit(stoch_fn, job_id='Oregonator' +
                                 str(job_id), t=t,
                                 number_of_trajectories=ntraj,
                                 increment=increment)

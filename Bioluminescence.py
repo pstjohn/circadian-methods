@@ -486,7 +486,8 @@ def estimate_sinusoid_pars(x, y):
         'period'    : period,
         'phase'     : phase,
         'amplitude' : amplitude,
-        'decay'     : -decay*period/(2*np.pi) # (1/rad)
+        'decay'     : -decay*period/(2*np.pi), # (1/rad)
+        # 'weights'   : weights,
     }
 
     return pars

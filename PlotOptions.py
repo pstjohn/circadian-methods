@@ -9,6 +9,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
+from scipy import stats
 
 from CommonFiles.mimic_alpha import colorAlpha_to_rgb
 
@@ -109,28 +110,32 @@ red = '#ff9999'
 green = '#99D699'
 
 def histogram(ax, data1=None, data2=None, color1=blue, color2=red,
-              bins=20, range=None, alpha=1., label1=None, label2=None):
+              bins=20, range=None, alpha=1., label1=None, label2=None,
+              weights1=None, weights2=None):
     """ Function to display a pretty histogram of up to two different
     distributions. Approximates transparency to get around annoying
     issue of pdflatex and matplotlib. """
     
-    weights1 = np.ones_like(data1)/len(data1)
+    if weights1 == None: weights1 = np.ones_like(data1)/len(data1)
+    # Make sure weights is the correct size
+    weights1 *= np.ones_like(data1)
 
     hist1 = ax.hist(data1, range=range, bins=bins, weights=weights1,
                     facecolor=color1, edgecolor='white', label=label1)
     ax.spines['right'].set_color('none')
     ax.spines['top'].set_color('none')
     ax.xaxis.set_ticks_position('bottom')
-    ax.spines['bottom'].set_position(('axes', -0.05))
+    ax.spines['bottom'].set_position(('axes', -0.025))
     ax.yaxis.set_ticks_position('left')
-    ax.spines['left'].set_position(('axes', -0.05))
+    ax.spines['left'].set_position(('axes', -0.025))
     if range:
         ax.set_xlim(range)
     ax.xaxis.grid(False)
     ax.yaxis.grid(False)
 
     if data2 is not None:
-        weights2 = np.ones_like(data2)/len(data2)
+        if weights2 == None: weights2 = np.ones_like(data2)/len(data2)
+        weights2 *= np.ones_like(data2)
         c2_on_w = colorAlpha_to_rgb(color2, alpha=0.5, bg='w')[0]
         c2_on_c1 = colorAlpha_to_rgb(color2, alpha=0.5, bg=color1)[0]
 
@@ -154,8 +159,9 @@ def histogram(ax, data1=None, data2=None, color1=blue, color2=red,
         return hist1
 
 
-def density_contour(ax, xdata, ydata, nbins_x, nbins_y, range=None,
-                    levels=None, **contour_kwargs):
+def density_contour(ax, xdata, ydata, method='hist', nbins_x=30,
+                    nbins_y=None, xy_range=None, levels=None, filled=True,
+                    cmap=None, bw_method=None, **contour_kwargs):
     """ Create a density contour plot.
 
     Parameters
@@ -165,7 +171,7 @@ def density_contour(ax, xdata, ydata, nbins_x, nbins_y, range=None,
     nbins_x : int
         Number of bins along x dimension
     nbins_y : int
-        Number of bins along y dimension
+        Number of bins along y dimension (default: nbins_x)
     ax : matplotlib.Axes (optional)
         If supplied, plot the contour to this axis. Otherwise, open a
         new figure
@@ -173,20 +179,43 @@ def density_contour(ax, xdata, ydata, nbins_x, nbins_y, range=None,
         kwargs to be passed to pyplot.contour()
     """
 
-    H, xedges, yedges = np.histogram2d(xdata, ydata,
-                                       bins=(nbins_x, nbins_y),
-                                       normed=True, range=range)
-    x_bin_sizes = (xedges[1:] - xedges[:-1]).reshape((1,nbins_x))
-    y_bin_sizes = (yedges[1:] - yedges[:-1]).reshape((nbins_y,1))
+    if cmap == None: cmap = matplotlib.cm.PuBu
+    if cmap == "none": cmap = None
 
-    pdf = (H*(x_bin_sizes*y_bin_sizes))
+    if method == "hist":
+        if nbins_y == None: nbins_y = nbins_x
 
-    X, Y = 0.5*(xedges[1:]+xedges[:-1]), 0.5*(yedges[1:]+yedges[:-1])
-    Z = pdf.T
+        H, xedges, yedges = np.histogram2d(xdata, ydata,
+                                           bins=(nbins_x, nbins_y),
+                                           normed=True, range=xy_range)
+        # x_bin_sizes = (xedges[1:] - xedges[:-1]).reshape((1,nbins_x))
+        # y_bin_sizes = (yedges[1:] - yedges[:-1]).reshape((nbins_y,1))
 
-    contour = ax.contour(X, Y, Z, levels=levels, colors='0.2')
-    ax.contourf(X, Y, Z, levels=levels, cmap=matplotlib.cm.PuBu,
-                **contour_kwargs)
+        # pdf = (H*(x_bin_sizes*y_bin_sizes))
+        pdf = H
+
+        X, Y = 0.5*(xedges[1:]+xedges[:-1]), 0.5*(yedges[1:]+yedges[:-1])
+        Z = pdf.T
+
+    else:
+
+        xmin, xmax = xy_range[0]
+        ymin, ymax = xy_range[1]
+
+        X, Y = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
+        positions = np.vstack([X.ravel(), Y.ravel()])
+        values = np.vstack([xdata, ydata])
+        kernel = stats.gaussian_kde(values, bw_method=bw_method)
+        Z = np.reshape(kernel(positions).T, X.shape)
+
+
+    if filled:
+        contour = ax.contour(X, Y, Z, levels=levels, colors='0.2')
+        ax.contourf(X, Y, Z, levels=levels, cmap=cmap,
+                    **contour_kwargs)
+    else:
+        ax.contour(X, Y, Z, levels=levels, cmap=cmap,
+                    **contour_kwargs)
 
     return contour
 
@@ -243,3 +272,13 @@ def create_pi_labels(ax, a=0, b=2, step=0.5, direction='x'):
 
     return ticks, labels
 
+solarized = {
+    'yellow'  : '#b58900',
+    'orange'  : '#cb4b16',
+    'red'     : '#dc322f',
+    'magenta' : '#d33682',
+    'violet'  : '#6c71c4',
+    'blue'    : '#268bd2',
+    'cyan'    : '#2aa198',
+    'green'   : '#859900',
+}

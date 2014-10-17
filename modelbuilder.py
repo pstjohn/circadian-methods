@@ -496,8 +496,8 @@ class SSA_builder(object):
         rcts = {self.species_array[self.ydict[Y]]:1}
         prods = {}
         
-        propfcn = (Y+'/(a0 + a1*('+Y+'/'+str(self.vol)+
-                   ') + a2*'+Y+'*'+Y+'/('+str(self.vol)+'*'
+        propfcn = (Y+'/(' + a0 + '+ ' + a1 + '*('+Y+'/'+str(self.vol)+
+                   ') + ' + a2 + '*'+Y+'*'+Y+'/('+str(self.vol)+'*'
                    +str(self.vol)+'))')
 
         rxn = stk.Reaction(name=Desc,  
