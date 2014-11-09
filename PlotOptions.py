@@ -282,3 +282,25 @@ solarized = {
     'cyan'    : '#2aa198',
     'green'   : '#859900',
 }
+
+def boxplot(ax, data, color='#377EB8', sym='b.'):
+    """ Create a nice-looking boxplot with the data in data. Columns
+    should be the different samples. sym handles the outlier mark,
+    default is no mark. """
+
+    data = np.asarray(data)
+
+    # Shortcut method if there is no nan data
+    if not np.any(np.isnan(data)): cdata = data
+    else:
+        cdata = [col[~np.isnan(col)] for col in data.T]
+
+    bp = ax.boxplot(cdata, sym=sym, widths=0.65)
+    plt.setp(bp['medians'], color=color, linewidth=0.75,
+             solid_capstyle='butt')
+    plt.setp(bp['boxes'], color=color, linewidth=0.5)
+    plt.setp(bp['whiskers'], color=color, linewidth=0.5, linestyle='--',
+             dashes=(4,3))
+    plt.setp(bp['caps'], color=color, linewidth=0.5)
+    plt.setp(bp['fliers'], markerfacecolor=color)
+
