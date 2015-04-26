@@ -294,6 +294,27 @@ class SSA_builder(object):
 
         rxn.propensity_function = propfcn
 
+    #MichaelisMenten Nonlinear (p=P)
+    def SSA_MM_P_Goodwin(self, Desc, Prod=None,
+                 Rep=None, P=None):
+        """ Peter's hacked function to allow for hill kinetics in
+        Goodwin Model """
+
+
+        # Add the 3rd order hill term
+
+        vmax_expr = str(self.vol)
+        km0_expr = '1'
+        rep_expr = '*'.join(['(' + Rep + '/' + str(self.vol) + ')']*int(P))
+
+        propfcn = vmax_expr + '/(' + km0_expr + '+' + rep_expr + ')'
+
+        rxn=stk.Reaction(name=Desc,
+                         products={self.species_array[self.ydict[Prod]]:1},
+                         propensity_function=propfcn,
+                         annotation="EmptySet->"+Prod)    
+        self.SSAmodel.addReaction(rxn)
+
 
     #MichaelisMenten Nonlinear
     def SSA_MM(self, Desc, vmax, km=None, Rct=None, Prod=None, Act=None,
@@ -471,7 +492,7 @@ class SSA_builder(object):
             return
 
 
-    def SSA_tyson_x(self,Desc,X,Y,P):
+    def SSA_tyson_x(self,Desc,X,Y,P,tc=None):
         rcts = {}
         prods = {self.species_array[self.ydict[X]]:1}
 
@@ -481,6 +502,8 @@ class SSA_builder(object):
         volmult = '('+str(self.vol)+('*'+str(self.vol))*(exp_P-1)+')'
 
         propfcn = str(self.vol)+'*1/(1+('+ymult+'/('+volmult+')))'
+
+        if tc: propfcn = tc + '*' + propfcn
 
         rxn = stk.Reaction(name=Desc,  
                                 reactants=rcts,
@@ -492,13 +515,16 @@ class SSA_builder(object):
         
         return
     
-    def SSA_tyson_y(self,Desc,Y,a0,a1,a2):
+    def SSA_tyson_y(self,Desc,Y,a0,a1,a2,tc=None):
         rcts = {self.species_array[self.ydict[Y]]:1}
         prods = {}
         
         propfcn = (Y+'/(' + a0 + '+ ' + a1 + '*('+Y+'/'+str(self.vol)+
                    ') + ' + a2 + '*'+Y+'*'+Y+'/('+str(self.vol)+'*'
                    +str(self.vol)+'))')
+
+        if tc: propfcn = tc + '*' + propfcn
+
 
         rxn = stk.Reaction(name=Desc,  
                                 reactants=rcts,

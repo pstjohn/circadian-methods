@@ -53,10 +53,10 @@ def model():
     return fn
 
 def create_class():
-    from .. import pBase
+    from CommonFiles.pBase import pBase
     return pBase(model(), paramset, y0in)
 
 
 if __name__ == "__main__":
-    from CommonFiles import pBase
+    from CommonFiles.pBase import pBase
     test_base = pBase(model(), paramset, y0in)

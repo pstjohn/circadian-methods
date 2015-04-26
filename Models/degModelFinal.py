@@ -109,6 +109,6 @@ def model():
 
 def create_class():
     from .. import pBase
-    return pBase(model(), paramset, y0in)
+    return pBase.pBase(model(), paramset, y0in)
     
     

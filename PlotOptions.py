@@ -304,3 +304,13 @@ def boxplot(ax, data, color='#377EB8', sym='b.'):
     plt.setp(bp['caps'], color=color, linewidth=0.5)
     plt.setp(bp['fliers'], markerfacecolor=color)
 
+
+def barplot(ax, data, labels):
+    """ create a nice barplot, where data is a 1-d array, and labels are
+    the IDs of each of the elements """
+
+    N = len(data)
+    ax.bar(np.arange(N) - 0.5, data, width=0.9)
+    ax.set_xlim([-0.6, N - 0.4])
+    ax.set_xticks(np.arange(N))
+    ax.set_xticklabels(labels)
